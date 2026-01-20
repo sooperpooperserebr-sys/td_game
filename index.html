@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тавернодéфенс</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(to bottom, #1a1a2e, #16213e);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .header h1 {
+            color: #f8c555;
+            font-size: 3rem;
+            text-shadow: 0 0 10px rgba(248, 197, 85, 0.7);
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #aaa;
+            font-size: 1.1rem;
+            max-width: 800px;
+            margin: 0 auto 20px;
+        }
+
+        .game-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .game-board {
+            flex: 1;
+            min-width: 300px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            padding: 15px;
+            border: 2px solid #f8c555;
+            box-shadow: 0 0 20px rgba(248, 197, 85, 0.3);
+        }
+
+        .game-info {
+            flex: 1;
+            min-width: 300px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 15px;
+            padding: 15px;
+            border: 2px solid #3498db;
+            box-shadow: 0 0 20px rgba(52, 152, 219, 0.3);
+        }
+
+        .game-area {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+            gap: 5px;
+            width: 100%;
+            height: 400px;
+            background-color: rgba(30, 40, 60, 0.7);
+            border-radius: 10px;
+            padding: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cell {
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .cell:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .tavern {
+            grid-column: 7 / 9;
+            grid-row: 2 / 6;
+            background-color: rgba(139, 69, 19, 0.7);
+            border: 3px solid #8b4513;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: #f8c555;
+        }
+
+        .enemy {
+            background-color: #e74c3c;
+            border-radius: 50%;
+            width: 80%;
+            height: 80%;
+            margin: 10% auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 0 10px rgba(231, 76, 60, 0.8);
+        }
+
+        .defender {
+            background-color: #2ecc71;
+            border-radius: 50%;
+            width: 80%;
+            height: 80%;
+            margin: 10% auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 0 10px rgba(46, 204, 113, 0.8);
+        }
+
+        .projectile {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f1c40f;
+            border-radius: 50%;
+            z-index: 10;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #f8c555;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+
+        .defenders-shop {
+            margin-top: 20px;
+        }
+
+        .defenders-shop h3 {
+            color: #2ecc71;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .defender-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .defender-card {
+            background-color: rgba(30, 40, 60, 0.7);
+            border-radius: 10px;
+            padding: 10px;
+            width: calc(50% - 10px);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .defender-card:hover {
+            border-color: #2ecc71;
+            transform: translateY(-5px);
+        }
+
+        .defender-card.selected {
+            border-color: #f8c555;
+            background-color: rgba(248, 197, 85, 0.1);
+        }
+
+        .defender-icon {
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+
+        .defender-cost {
+            color: #f8c555;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-start {
+            background-color: #2ecc71;
+            color: white;
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+
+        .btn-start:hover {
+            background-color: #27ae60;
+            transform: scale(1.05);
+        }
+
+        .btn-special {
+            background-color: #9b59b6;
+            color: white;
+        }
+
+        .btn-special:hover {
+            background-color: #8e44ad;
+            transform: scale(1.05);
+        }
+
+        .btn-special:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .wave-info {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .wave-info h3 {
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+
+        .message-log {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: 20px;
+            height: 150px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+        }
+
+        .message {
+            padding: 5px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+        }
+
+        .message-enemy {
+            background-color: rgba(231, 76, 60, 0.2);
+            border-left: 3px solid #e74c3c;
+        }
+
+        .message-defender {
+            background-color: rgba(46, 204, 113, 0.2);
+            border-left: 3px solid #2ecc71;
+        }
+
+        .message-system {
+            background-color: rgba(52, 152, 219, 0.2);
+            border-left: 3px solid #3498db;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            border-radius: 10px;
+        }
+
+        .game-over h2 {
+            font-size: 3rem;
+            color: #e74c3c;
+            margin-bottom: 20px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                flex-direction: column;
+            }
+            
+            .defender-card {
+                width: calc(100% - 10px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-beer"></i> Тавернодéфенс</h1>
+        <p>Защитите свою таверну от разъярённых посетителей! Расставляйте защитников, улучшайте их и отбивайте волны врагов.</p>
+    </div>
+
+    <div class="game-container">
+        <div class="game-board">
+            <div class="game-area" id="gameArea">
+                <!-- Игровое поле будет сгенерировано JavaScript -->
+                <div class="tavern">
+                    <i class="fas fa-beer"></i>
+                </div>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="health">100</div>
+                    <div class="stat-label">Здоровье таверны</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="gold">150</div>
+                    <div class="stat-label">Золото</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="wave">1</div>
+                    <div class="stat-label">Волна</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn btn-start" id="startWave">Начать волну</button>
+                <button class="btn btn-special" id="specialAbility" disabled>Особая атака</button>
+            </div>
+
+            <div class="wave-info">
+                <h3>Волна 1</h3>
+                <p>Враги: 5 обычных посетителей</p>
+                <div class="wave-progress">
+                    <div style="width: 100%; height: 10px; background-color: #333; border-radius: 5px;">
+                        <div id="waveProgress" style="width: 0%; height: 100%; background-color: #3498db; border-radius: 5px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="game-info">
+            <div class="defenders-shop">
+                <h3><i class="fas fa-shield-alt"></i> Найм защитников</h3>
+                <p>Выберите защитника и кликните на клетку, чтобы разместить его</p>
+                <div class="defender-cards" id="defenderCards">
+                    <!-- Карточки защитников будут сгенерированы JavaScript -->
+                </div>
+            </div>
+
+            <div class="message-log">
+                <h3>Журнал событий</h3>
+                <div id="messageLog">
+                    <!-- Сообщения будут добавляться JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="gameOverScreen" class="game-over hidden">
+        <h2 id="gameOverTitle">Игра окончена!</h2>
+        <p id="gameOverMessage">Вы продержались 0 волн</p>
+        <button class="btn btn-start" id="restartButton">Начать заново</button>
+    </div>
+
+    <script>
+        // Игровые переменные
+        const gameState = {
+            health: 100,
+            gold: 150,
+            wave: 1,
+            waveActive: false,
+            enemies: [],
+            defenders: [],
+            projectiles: [],
+            selectedDefender: null,
+            specialAbilityCooldown: 0,
+            gameOver: false,
+            cells: []
+        };
+
+        // Конфигурация защитников
+        const defendersConfig = [
+            { id: 1, name: "Охранник", cost: 50, damage: 10, range: 3, attackSpeed: 1.5, icon: "fas fa-shield-alt", color: "#2ecc71" },
+            { id: 2, name: "Лучник", cost: 75, damage: 15, range: 5, attackSpeed: 2, icon: "fas fa-bow-arrow", color: "#3498db" },
+            { id: 3, name: "Маг", cost: 100, damage: 25, range: 4, attackSpeed: 3, icon: "fas fa-hat-wizard", color: "#9b59b6" },
+            { id: 4, name: "Катапульта", cost: 150, damage: 40, range: 6, attackSpeed: 4, icon: "fas fa-catapult", color: "#e67e22" }
+        ];
+
+        // Конфигурация врагов
+        const enemiesConfig = [
+            { type: "regular", health: 30, speed: 1, damage: 5, goldReward: 10, color: "#e74c3c", name: "Пьяный посетитель" },
+            { type: "strong", health: 60, speed: 0.7, damage: 15, goldReward: 25, color: "#c0392b", name: "Разъярённый гном" },
+            { type: "fast", health: 20, speed: 2, damage: 3, goldReward: 15, color: "#d35400", name: "Вор-халфлинг" }
+        ];
+
+        // DOM элементы
+        const gameArea = document.getElementById('gameArea');
+        const healthElement = document.getElementById('health');
+        const goldElement = document.getElementById('gold');
+        const waveElement = document.getElementById('wave');
+        const startWaveButton = document.getElementById('startWave');
+        const specialAbilityButton = document.getElementById('specialAbility');
+        const defenderCardsContainer = document.getElementById('defenderCards');
+        const messageLog = document.getElementById('messageLog');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const gameOverTitle = document.getElementById('gameOverTitle');
+        const gameOverMessage = document.getElementById('gameOverMessage');
+        const restartButton = document.getElementById('restartButton');
+        const waveProgress = document.getElementById('waveProgress');
+
+        // Инициализация игры
+        function initGame() {
+            createGameGrid();
+            createDefenderCards();
+            updateUI();
+            addMessage("Добро пожаловать в Тавернодéфенс!", "system");
+            addMessage("Выберите защитника и разместите его на поле, затем начните волну.", "system");
+        }
+
+        // Создание игровой сетки
+        function createGameGrid() {
+            gameArea.innerHTML = '<div class="tavern"><i class="fas fa-beer"></i></div>';
+            gameState.cells = [];
+            
+            for (let row = 0; row < 6; row++) {
+                for (let col = 0; col < 8; col++) {
+                    // Пропускаем клетки, где находится таверна
+                    if (col >= 6 && row >= 1 && row <= 4) continue;
+                    
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    
+                    cell.addEventListener('click', () => placeDefender(row, col));
+                    
+                    gameArea.appendChild(cell);
+                    gameState.cells.push({ row, col, element: cell, defender: null });
+                }
+            }
+        }
+
+        // Создание карточек защитников
+        function createDefenderCards() {
+            defenderCardsContainer.innerHTML = '';
+            
+            defendersConfig.forEach(defender => {
+                const card = document.createElement('div');
+                card.className = 'defender-card';
+                card.dataset.id = defender.id;
+                
+                card.innerHTML = `
+                    <div class="defender-icon" style="color: ${defender.color}">
+                        <i class="${defender.icon}"></i>
+                    </div>
+                    <div class="defender-name">${defender.name}</div>
+                    <div class="defender-cost"><i class="fas fa-coins"></i> ${defender.cost}</div>
+                    <div class="defender-stats">Урон: ${defender.damage}, Дальность: ${defender.range}</div>
+                `;
+                
+                card.addEventListener('click', () => selectDefender(defender.id));
+                defenderCardsContainer.appendChild(card);
+            });
+        }
+
+        // Выбор защитника
+        function selectDefender(defenderId) {
+            gameState.selectedDefender = defendersConfig.find(d => d.id === defenderId);
+            
+            // Убираем выделение со всех карточек
+            document.querySelectorAll('.defender-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Выделяем выбранную карточку
+            document.querySelector(`.defender-card[data-id="${defenderId}"]`).classList.add('selected');
+            
+            addMessage(`Выбран защитник: ${gameState.selectedDefender.name}`, "defender");
+        }
+
+        // Размещение защитника на поле
+        function placeDefender(row, col) {
+            if (!gameState.selectedDefender) {
+                addMessage("Сначала выберите защитника из списка!", "system");
+                return;
+            }
+            
+            if (gameState.waveActive) {
+                addMessage("Нельзя размещать защитников во время волны!", "system");
+                return;
+            }
+            
+            if (gameState.gold < gameState.selectedDefender.cost) {
+                addMessage("Недостаточно золота для найма этого защитника!", "system");
+                return;
+            }
+            
+            // Проверяем, не занята ли клетка
+            const cell = gameState.cells.find(c => c.row === row && c.col === col);
+            if (!cell || cell.defender) {
+                addMessage("Нельзя разместить защитника здесь!", "system");
+                return;
+            }
+            
+            // Создаем защитника
+            const defender = {
+                ...gameState.selectedDefender,
+                id: Date.now(),
+                row,
+                col,
+                attackCooldown: 0
+            };
+            
+            // Добавляем защитника в состояние игры
+            gameState.defenders.push(defender);
+            cell.defender = defender;
+            
+            // Создаем визуальный элемент защитника
+            const defenderElement = document.createElement('div');
+            defenderElement.className = 'defender';
+            defenderElement.id = `defender-${defender.id}`;
+            defenderElement.innerHTML = `<i class="${defender.icon}"></i>`;
+            defenderElement.style.backgroundColor = defender.color;
+            
+            // Находим клетку и добавляем в нее защитника
+            const cellElement = document.querySelector(`.cell[data-row="${row}"][data-col="${col}"]`);
+            cellElement.appendChild(defenderElement);
+            
+            // Вычитаем золото
+            gameState.gold -= defender.cost;
+            
+            addMessage(`Размещен ${defender.name} на позиции (${row+1}, ${col+1})`, "defender");
+            updateUI();
+        }
+
+        // Начало волны
+        function startWave() {
+            if (gameState.waveActive || gameState.gameOver) return;
+            
+            gameState.waveActive = true;
+            startWaveButton.textContent = "Волна в процессе...";
+            startWaveButton.disabled = true;
+            
+            addMessage(`Начинается волна ${gameState.wave}!`, "system");
+            
+            // Создаем врагов для текущей волны
+            createEnemiesForWave();
+            
+            // Запускаем игровой цикл
+            gameLoop();
+        }
+
+        // Создание врагов для волны
+        function createEnemiesForWave() {
+            gameState.enemies = [];
+            const enemyCount = 3 + gameState.wave * 2;
+            const strongEnemyThreshold = gameState.wave > 3 ? Math.floor(enemyCount * 0.2) : 0;
+            const fastEnemyThreshold = gameState.wave > 5 ? Math.floor(enemyCount * 0.3) : 0;
+            
+            for (let i = 0; i < enemyCount; i++) {
+                let enemyType;
+                
+                if (i < strongEnemyThreshold) {
+                    enemyType = "strong";
+                } else if (i < strongEnemyThreshold + fastEnemyThreshold) {
+                    enemyType = "fast";
+                } else {
+                    enemyType = "regular";
+                }
+                
+                const enemyConfig = enemiesConfig.find(e => e.type === enemyType);
+                const enemy = {
+                    ...enemyConfig,
+                    id: Date.now() + i,
+                    row: Math.floor(Math.random() * 6),
+                    col: -1,
+                    health: enemyConfig.health * (1 + (gameState.wave - 1) * 0.1),
+                    maxHealth: enemyConfig.health * (1 + (gameState.wave - 1) * 0.1)
+                };
+                
+                gameState.enemies.push(enemy);
+                
+                // Создаем визуальный элемент врага
+                const enemyElement = document.createElement('div');
+                enemyElement.className = 'enemy';
+                enemyElement.id = `enemy-${enemy.id}`;
+                enemyElement.innerHTML = `<i class="fas fa-user"></i>`;
+                enemyElement.style.backgroundColor = enemy.color;
+                
+                // Добавляем врага на поле
+                const cell = gameState.cells.find(c => c.row === enemy.row && c.col === 0);
+                if (cell) {
+                    cell.element.appendChild(enemyElement);
+                }
+            }
+            
+            addMessage(`Появилось ${enemyCount} врагов!`, "enemy");
+        }
+
+        // Игровой цикл
+        function gameLoop() {
+            if (gameState.gameOver) return;
+            
+            // Обновляем врагов
+            updateEnemies();
+            
+            // Обновляем защитников
+            updateDefenders();
+            
+            // Обновляем снаряды
+            updateProjectiles();
+            
+            // Обновляем особую способность
+            updateSpecialAbility();
+            
+            // Обновляем прогресс волны
+            updateWaveProgress();
+            
+            // Обновляем интерфейс
+            updateUI();
+            
+            // Проверяем условия окончания волны
+            if (gameState.waveActive && gameState.enemies.length === 0) {
+                endWave();
+            }
+            
+            // Проверяем условия поражения
+            if (gameState.health <= 0) {
+                gameOver();
+                return;
+            }
+            
+            // Продолжаем игровой цикл
+            if (gameState.waveActive || gameState.enemies.length > 0) {
+                setTimeout(gameLoop, 100);
+            }
+        }
+
+        // Обновление врагов
+        function updateEnemies() {
+            gameState.enemies.forEach((enemy, index) => {
+                // Двигаем врага вперед
+                enemy.col += enemy.speed * 0.1;
+                
+                // Обновляем позицию врага
+                const enemyElement = document.getElementById(`enemy-${enemy.id}`);
+                if (enemyElement) {
+                    const cell = gameState.cells.find(c => c.row === Math.round(enemy.row) && c.col === Math.floor(enemy.col));
+                    if (cell) {
+                        enemyElement.style.position = 'absolute';
+                        enemyElement.style.left = `${(enemy.col % 1) * 100}%`;
+                        enemyElement.style.top = '10%';
+                        cell.element.appendChild(enemyElement);
+                    }
+                }
+                
+                // Если враг достиг таверны
+                if (enemy.col >= 6) {
+                    // Наносим урон таверне
+                    gameState.health -= enemy.damage;
+                    
+                    addMessage(`${enemy.name} атаковал таверну и нанес ${enemy.damage} урона!`, "enemy");
+                    
+                    // Удаляем врага
+                    removeEnemy(enemy.id, false);
+                }
+            });
+        }
+
+        // Обновление защитников
+        function updateDefenders() {
+            gameState.defenders.forEach(defender => {
+                // Уменьшаем время перезарядки атаки
+                if (defender.attackCooldown > 0) {
+                    defender.attackCooldown -= 0.1;
+                    return;
+                }
+                
+                // Ищем врага в радиусе атаки
+                const target = findTargetForDefender(defender);
+                
+                if (target) {
+                    // Атакуем врага
+                    attackEnemy(defender, target);
+                    defender.attackCooldown = defender.attackSpeed;
+                }
+            });
+        }
+
+        // Поиск цели для защитника
+        function findTargetForDefender(defender) {
+            let closestEnemy = null;
+            let closestDistance = Infinity;
+            
+            gameState.enemies.forEach(enemy => {
+                const distance = Math.sqrt(
+                    Math.pow(enemy.row - defender.row, 2) + 
+                    Math.pow(enemy.col - defender.col, 2)
+                );
+                
+                if (distance <= defender.range && distance < closestDistance) {
+                    closestDistance = distance;
+                    closestEnemy = enemy;
+                }
+            });
+            
+            return closestEnemy;
+        }
+
+        // Атака врага
+        function attackEnemy(defender, enemy) {
+            // Наносим урон врагу
+            enemy.health -= defender.damage;
+            
+            addMessage(`${defender.name} атаковал ${enemy.name} и нанес ${defender.damage} урона!`, "defender");
+            
+            // Создаем снаряд
+            createProjectile(defender, enemy);
+            
+            // Проверяем, убит ли враг
+            if (enemy.health <= 0) {
+                removeEnemy(enemy.id, true);
+                gameState.gold += enemy.goldReward;
+                addMessage(`${enemy.name} побежден! Получено ${enemy.goldReward} золота.`, "system");
+            }
+        }
+
+        // Создание снаряда
+        function createProjectile(defender, enemy) {
+            const projectile = {
+                id: Date.now(),
+                fromRow: defender.row,
+                fromCol: defender.col,
+                toRow: enemy.row,
+                toCol: enemy.col,
+                progress: 0
+            };
+            
+            gameState.projectiles.push(projectile);
+            
+            const projectileElement = document.createElement('div');
+            projectileElement.className = 'projectile';
+            projectileElement.id = `projectile-${projectile.id}`;
+            projectileElement.style.left = `${defender.col * 12.5 + 6.25}%`;
+            projectileElement.style.top = `${defender.row * 16.67 + 8.33}%`;
+            
+            gameArea.appendChild(projectileElement);
+        }
+
+        // Обновление снарядов
+        function updateProjectiles() {
+            gameState.projectiles.forEach((projectile, index) => {
+                projectile.progress += 0.2;
+                
+                const projectileElement = document.getElementById(`projectile-${projectile.id}`);
+                if (projectileElement) {
+                    const fromX = projectile.fromCol * 12.5 + 6.25;
+                    const fromY = projectile.fromRow * 16.67 + 8.33;
+                    const toX = projectile.toCol * 12.5 + 6.25;
+                    const toY = projectile.toRow * 16.67 + 8.33;
+                    
+                    const currentX = fromX + (toX - fromX) * projectile.progress;
+                    const currentY = fromY + (toY - fromY) * projectile.progress;
+                    
+                    projectileElement.style.left = `${currentX}%`;
+                    projectileElement.style.top = `${currentY}%`;
+                }
+                
+                // Удаляем снаряд, если он достиг цели
+                if (projectile.progress >= 1) {
+                    if (projectileElement) {
+                        projectileElement.remove();
+                    }
+                    gameState.projectiles.splice(index, 1);
+                }
+            });
+        }
+
+        // Удаление врага
+        function removeEnemy(enemyId, killed) {
+            const enemyIndex = gameState.enemies.findIndex(e => e.id === enemyId);
+            if (enemyIndex !== -1) {
+                gameState.enemies.splice(enemyIndex, 1);
+            }
+            
+            const enemyElement = document.getElementById(`enemy-${enemyId}`);
+            if (enemyElement) {
+                enemyElement.remove();
+            }
+        }
+
+        // Обновление особой способности
+        function updateSpecialAbility() {
+            if (gameState.specialAbilityCooldown > 0) {
+                gameState.specialAbilityCooldown -= 0.1;
+                specialAbilityButton.textContent = `Особая атака (${Math.ceil(gameState.specialAbilityCooldown)})`;
+                specialAbilityButton.disabled = true;
+            } else {
+                specialAbilityButton.textContent = "Особая атака";
+                specialAbilityButton.disabled = false;
+            }
+        }
+
+        // Использование особой способности
+        function useSpecialAbility() {
+            if (gameState.specialAbilityCooldown > 0 || gameState.gold < 50) return;
+            
+            gameState.specialAbilityCooldown = 10;
+            gameState.gold -= 50;
+            
+            // Наносим урон всем врагам на поле
+            gameState.enemies.forEach(enemy => {
+                enemy.health -= 30;
+                
+                if (enemy.health <= 0) {
+                    removeEnemy(enemy.id, true);
+                    gameState.gold += enemy.goldReward;
+                }
+            });
+            
+            addMessage("Использована особая атака! Все враги получили 30 урона.", "system");
+            updateUI();
+        }
+
+        // Обновление прогресса волны
+        function updateWaveProgress() {
+            if (!gameState.waveActive) return;
+            
+            const totalEnemiesAtStart = 3 + gameState.wave * 2;
+            const remainingEnemies = gameState.enemies.length;
+            const progress = ((totalEnemiesAtStart - remainingEnemies) / totalEnemiesAtStart) * 100;
+            
+            waveProgress.style.width = `${progress}%`;
+        }
+
+        // Завершение волны
+        function endWave() {
+            gameState.waveActive = false;
+            startWaveButton.textContent = "Начать волну";
+            startWaveButton.disabled = false;
+            
+            gameState.wave++;
+            
+            addMessage(`Волна ${gameState.wave - 1} завершена! Начинайте волну ${gameState.wave}`, "system");
+            
+            // Даем награду за завершенную волну
+            const waveReward = 50 + (gameState.wave - 1) * 10;
+            gameState.gold += waveReward;
+            
+            addMessage(`Получено ${waveReward} золота за завершение волны!`, "system");
+            
+            updateUI();
+        }
+
+        // Конец игры
+        function gameOver() {
+            gameState.gameOver = true;
+            gameOverTitle.textContent = "Игра окончена!";
+            gameOverMessage.textContent = `Вы продержались ${gameState.wave - 1} волн`;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        // Перезапуск игры
+        function restartGame() {
+            gameState.health = 100;
+            gameState.gold = 150;
+            gameState.wave = 1;
+            gameState.waveActive = false;
+            gameState.enemies = [];
+            gameState.defenders = [];
+            gameState.projectiles = [];
+            gameState.selectedDefender = null;
+            gameState.specialAbilityCooldown = 0;
+            gameState.gameOver = false;
+            
+            // Очищаем поле
+            document.querySelectorAll('.enemy, .defender, .projectile').forEach(el => el.remove());
+            
+            // Сбрасываем выделение защитников
+            document.querySelectorAll('.defender-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            
+            // Очищаем журнал сообщений
+            messageLog.innerHTML = '';
+            
+            // Обновляем интерфейс
+            updateUI();
+            
+            // Скрываем экран окончания игры
+            gameOverScreen.classList.add('hidden');
+            
+            addMessage("Игра перезапущена! Удачи!", "system");
+        }
+
+        // Обновление интерфейса
+        function updateUI() {
+            healthElement.textContent = Math.max(0, Math.floor(gameState.health));
+            goldElement.textContent = gameState.gold;
+            waveElement.textContent = gameState.wave;
+            
+            // Обновляем прогресс волны
+            if (!gameState.waveActive) {
+                waveProgress.style.width = '0%';
+            }
+            
+            // Обновляем информацию о волне
+            document.querySelector('.wave-info h3').textContent = `Волна ${gameState.wave}`;
+            
+            const enemyCount = 3 + gameState.wave * 2;
+            let enemyDescription = `Враги: ${enemyCount} обычных посетителей`;
+            
+            if (gameState.wave > 3) {
+                const strongCount = Math.floor(enemyCount * 0.2);
+                enemyDescription = `Враги: ${enemyCount - strongCount} обычных, ${strongCount} сильных посетителей`;
+            }
+            
+            if (gameState.wave > 5) {
+                const strongCount = Math.floor(enemyCount * 0.2);
+                const fastCount = Math.floor(enemyCount * 0.3);
+                const regularCount = enemyCount - strongCount - fastCount;
+                enemyDescription = `Враги: ${regularCount} обычных, ${strongCount} сильных, ${fastCount} быстрых посетителей`;
+            }
+            
+            document.querySelector('.wave-info p').textContent = enemyDescription;
+            
+            // Обновляем доступность карточек защитников
+            document.querySelectorAll('.defender-card').forEach(card => {
+                const defenderId = parseInt(card.dataset.id);
+                const defender = defendersConfig.find(d => d.id === defenderId);
+                
+                if (defender.cost > gameState.gold) {
+                    card.style.opacity = '0.5';
+                    card.style
