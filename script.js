@@ -21,7 +21,9 @@ document.addEventListener('DOMContentLoaded', function() {
         spawnInterval: 2000,
         enemiesInWave: 5,
         enemiesSpawned: 0,
-        lastFrameTime: 0
+        lastFrameTime: 0,
+        gameTime: 0,
+        enemiesDefeated: 0
     };
 
     // Элементы DOM
@@ -41,6 +43,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Инициализация Three.js сцены
     let scene, camera, renderer, controls;
     let towerCards = document.querySelectorAll('.tower-card');
+    let raycaster = new THREE.Raycaster();
+    let mouse = new THREE.Vector2();
     
     // Инициализация Three.js
     function initThreeJS() {
@@ -50,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Создание камеры
         camera = new THREE.PerspectiveCamera(75, gameCanvas.clientWidth / gameCanvas.clientHeight, 0.1, 1000);
-        camera.position.set(25, 20, 25);
+        camera.position.set(30, 25, 30);
         camera.lookAt(0, 0, 0);
         
         // Создание рендерера
@@ -120,6 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
+        ground.userData = { type: 'ground' };
         scene.add(ground);
         
         // Создание дороги
@@ -145,12 +150,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 gridPositions.push({x, z});
                 
                 // Визуализация ячеек для отладки
-                const cellGeometry = new THREE.BoxGeometry(game.cellSize - 0.2, 0.1, game.cellSize - 0.2);
+                const cellGeometry = new THREE.BoxGeometry(game.cellSize - 0.5, 0.1, game.cellSize - 0.5);
                 const cellMaterial = new THREE.MeshBasicMaterial({ 
                     color: 0x00ff00,
                     transparent: true,
-                    opacity: 0.1,
-                    visible: false // Скрываем для финальной версии
+                    opacity: 0.05,
+                    visible: false
                 });
                 const cell = new THREE.Mesh(cellGeometry, cellMaterial);
                 cell.position.set(x, 0.05, z);
@@ -174,6 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
         base.position.set(0, 3, -12);
         base.castShadow = true;
         base.receiveShadow = true;
+        base.userData = { type: 'tavern' };
         scene.add(base);
         
         // Крыша таверны
@@ -216,18 +222,25 @@ document.addEventListener('DOMContentLoaded', function() {
             scene.add(window);
         }
         
+        // Добавляем свет из окон
+        for (let i = -1; i <= 1; i += 2) {
+            const windowLight = new THREE.PointLight(0xffaa00, 0.5, 10);
+            windowLight.position.set(i * 2, 4, -8);
+            scene.add(windowLight);
+        }
+        
         game.tavern = { base, roof, door, health: game.tavernHealth };
     }
     
     // Создание пути для врагов
     function createPath() {
-        // Путь состоит из контрольных точек
+        // Путь состоит из контрольных точек (линия от спавна до таверны)
         game.path = [
             {x: -15, z: 5},
-            {x: -5, z: 5},
-            {x: -5, z: 15},
-            {x: 5, z: 15},
-            {x: 5, z: 5},
+            {x: -8, z: 5},
+            {x: -8, z: 12},
+            {x: 8, z: 12},
+            {x: 8, z: 5},
             {x: 0, z: 5},
             {x: 0, z: -8}  // Таверна
         ];
@@ -235,9 +248,28 @@ document.addEventListener('DOMContentLoaded', function() {
         // Визуализация пути (для отладки)
         const pathPoints = game.path.map(p => new THREE.Vector3(p.x, 0.1, p.z));
         const pathGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
-        const pathMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, visible: false }); // Скрываем в финальной версии
+        const pathMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, visible: false });
         const pathLine = new THREE.Line(pathGeometry, pathMaterial);
         scene.add(pathLine);
+        
+        // Добавляем указатели пути
+        for (let i = 0; i < game.path.length - 1; i++) {
+            const point = game.path[i];
+            const nextPoint = game.path[i + 1];
+            
+            // Создаем стрелку направления
+            const dir = new THREE.Vector3(nextPoint.x - point.x, 0, nextPoint.z - point.z);
+            const length = dir.length();
+            dir.normalize();
+            
+            const arrowGeometry = new THREE.ConeGeometry(0.3, 1, 4);
+            const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.3 });
+            const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+            arrow.position.set(point.x + dir.x * 2, 0.2, point.z + dir.z * 2);
+            arrow.lookAt(new THREE.Vector3(nextPoint.x, 0.2, nextPoint.z));
+            arrow.rotateX(Math.PI / 2);
+            scene.add(arrow);
+        }
     }
     
     // Создание башни
@@ -252,7 +284,8 @@ document.addEventListener('DOMContentLoaded', function() {
             attackSpeed: type === 'archer' ? 1.5 : type === 'knight' ? 1 : 2,
             lastAttack: 0,
             target: null,
-            mesh: null
+            mesh: null,
+            rangeMesh: null
         };
         
         let geometry, material, height;
@@ -293,6 +326,7 @@ document.addEventListener('DOMContentLoaded', function() {
         towerMesh.position.set(x, height/2, z);
         towerMesh.castShadow = true;
         towerMesh.receiveShadow = true;
+        towerMesh.userData = { type: 'tower', tower: tower };
         scene.add(towerMesh);
         
         // Добавление платформы под башней
@@ -308,8 +342,23 @@ document.addEventListener('DOMContentLoaded', function() {
         platform.receiveShadow = true;
         scene.add(platform);
         
+        // Добавление визуализации радиуса атаки (скрытой по умолчанию)
+        const rangeGeometry = new THREE.CircleGeometry(tower.range, 32);
+        const rangeMaterial = new THREE.MeshBasicMaterial({ 
+            color: type === 'archer' ? 0x00ff00 : type === 'knight' ? 0xff0000 : 0x800080,
+            transparent: true,
+            opacity: 0.2,
+            side: THREE.DoubleSide
+        });
+        const rangeMesh = new THREE.Mesh(rangeGeometry, rangeMaterial);
+        rangeMesh.position.set(x, 0.1, z);
+        rangeMesh.rotation.x = -Math.PI / 2;
+        rangeMesh.visible = false;
+        scene.add(rangeMesh);
+        
         tower.mesh = towerMesh;
         tower.platform = platform;
+        tower.rangeMesh = rangeMesh;
         game.towers.push(tower);
         
         return tower;
@@ -326,7 +375,8 @@ document.addEventListener('DOMContentLoaded', function() {
             goldReward: type === 'peasant' ? 10 : type === 'bandit' ? 20 : 30,
             pathIndex: 0,
             position: {x: game.path[0].x, z: game.path[0].z},
-            mesh: null
+            mesh: null,
+            healthBar: null
         };
         
         let geometry, material, size, color;
@@ -357,15 +407,52 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         const enemyMesh = new THREE.Mesh(geometry, material);
-        enemyMesh.position.set(enemy.position.x, size, enemy.position.z);
+        enemyMesh.position.set(enemy.position.x, size/2, enemy.position.z);
         enemyMesh.castShadow = true;
         enemyMesh.receiveShadow = true;
+        enemyMesh.userData = { type: 'enemy', enemy: enemy };
         scene.add(enemyMesh);
         
+        // Создание полоски здоровья над врагом
+        const healthBarGeometry = new THREE.PlaneGeometry(2, 0.2);
+        const healthBarMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00,
+            side: THREE.DoubleSide
+        });
+        const healthBarMesh = new THREE.Mesh(healthBarGeometry, healthBarMaterial);
+        healthBarMesh.position.set(enemy.position.x, size + 0.5, enemy.position.z);
+        healthBarMesh.visible = false; // Показываем только при повреждении
+        scene.add(healthBarMesh);
+        
         enemy.mesh = enemyMesh;
+        enemy.healthBar = healthBarMesh;
         game.enemies.push(enemy);
         
         return enemy;
+    }
+    
+    // Обновление полоски здоровья врага
+    function updateEnemyHealthBar(enemy) {
+        if (enemy.healthBar) {
+            const healthPercent = enemy.health / enemy.maxHealth;
+            enemy.healthBar.scale.x = healthPercent;
+            
+            // Изменение цвета в зависимости от здоровья
+            if (healthPercent > 0.5) {
+                enemy.healthBar.material.color.setHex(0x00ff00);
+            } else if (healthPercent > 0.2) {
+                enemy.healthBar.material.color.setHex(0xffff00);
+            } else {
+                enemy.healthBar.material.color.setHex(0xff0000);
+            }
+            
+            // Показываем полоску здоровья на 2 секунды после получения урона
+            enemy.healthBar.visible = true;
+            if (enemy.healthTimeout) clearTimeout(enemy.healthTimeout);
+            enemy.healthTimeout = setTimeout(() => {
+                if (enemy.healthBar) enemy.healthBar.visible = false;
+            }, 2000);
+        }
     }
     
     // Создание снаряда
@@ -415,8 +502,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Обновление игры
     function updateGame(currentTime) {
+        if (!game.lastFrameTime) game.lastFrameTime = currentTime;
         const deltaTime = Math.min((currentTime - game.lastFrameTime) / 1000, 0.1);
         game.lastFrameTime = currentTime;
+        game.gameTime += deltaTime;
         
         // Обновление врагов
         for (let i = game.enemies.length - 1; i >= 0; i--) {
@@ -436,6 +525,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     enemy.position.z += (dz / distance) * enemy.speed * deltaTime;
                     enemy.mesh.position.set(enemy.position.x, enemy.mesh.position.y, enemy.position.z);
                     
+                    // Обновление полоски здоровья
+                    if (enemy.healthBar) {
+                        enemy.healthBar.position.set(enemy.position.x, enemy.mesh.position.y + 1, enemy.position.z);
+                        // Поворачиваем полоску здоровья к камере
+                        enemy.healthBar.lookAt(camera.position);
+                    }
+                    
                     // Поворот врага в направлении движения
                     if (distance > 0.1) {
                         enemy.mesh.lookAt(
@@ -453,6 +549,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Удаление врага
                 scene.remove(enemy.mesh);
+                if (enemy.healthBar) scene.remove(enemy.healthBar);
                 game.enemies.splice(i, 1);
                 
                 // Проверка поражения
@@ -466,11 +563,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (enemy.health <= 0) {
                 // Награда за убийство
                 game.gold += enemy.goldReward;
+                game.enemiesDefeated++;
                 updateGold();
                 showMessage(`+${enemy.goldReward} золота`, 'gold');
                 
+                // Эффект смерти
+                createDeathEffect(enemy.mesh.position);
+                
                 // Удаление врага
                 scene.remove(enemy.mesh);
+                if (enemy.healthBar) scene.remove(enemy.healthBar);
                 game.enemies.splice(i, 1);
             }
         }
@@ -521,6 +623,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const dz = to.z - from.z;
                 tower.mesh.lookAt(to.x, from.y, to.z);
             }
+            
+            // Анимация башни (легкое покачивание)
+            tower.mesh.position.y = (tower.type === 'archer' ? 2.5 : tower.type === 'knight' ? 3 : 2.5) + 
+                                   Math.sin(game.gameTime * 2 + tower.x) * 0.1;
         });
         
         // Обновление снарядов
@@ -531,23 +637,27 @@ document.addEventListener('DOMContentLoaded', function() {
             if (projectile.progress >= 1) {
                 // Снаряд достиг цели
                 const enemy = game.enemies.find(e => 
-                    e.position.x === projectile.to.x && 
-                    e.position.z === projectile.to.z
+                    Math.abs(e.position.x - projectile.to.x) < 1 && 
+                    Math.abs(e.position.z - projectile.to.z) < 1
                 );
                 
                 if (enemy) {
                     enemy.health -= projectile.damage;
+                    updateEnemyHealthBar(enemy);
                     
                     // Эффект попадания
+                    createHitEffect(projectile.mesh.position, projectile.type);
+                    
+                    // Магический урон по области
                     if (projectile.type === 'mage') {
-                        // Магический урон по области
                         game.enemies.forEach(e => {
                             const dx = e.position.x - enemy.position.x;
                             const dz = e.position.z - enemy.position.z;
                             const distance = Math.sqrt(dx * dx + dz * dz);
                             
-                            if (distance < 3) {
+                            if (distance < 3 && e !== enemy) {
                                 e.health -= projectile.damage * 0.5;
+                                updateEnemyHealthBar(e);
                             }
                         });
                     }
@@ -559,9 +669,14 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 // Движение снаряда
                 const x = projectile.from.x + (projectile.to.x - projectile.from.x) * projectile.progress;
-                const y = projectile.from.y + (projectile.to.y - projectile.from.y) * projectile.progress;
+                const y = projectile.from.y + (projectile.to.y - projectile.from.y) * projectile.progress + 
+                         Math.sin(projectile.progress * Math.PI) * 3; // Дуга траектории
                 const z = projectile.from.z + (projectile.to.z - projectile.from.z) * projectile.progress;
                 projectile.mesh.position.set(x, y, z);
+                
+                // Вращение снаряда
+                projectile.mesh.rotation.x += 0.1;
+                projectile.mesh.rotation.y += 0.1;
             }
         }
         
@@ -571,9 +686,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 let enemyType;
                 const rand = Math.random();
                 
-                if (rand < 0.5) enemyType = 'peasant';
-                else if (rand < 0.8) enemyType = 'bandit';
-                else enemyType = 'knight-enemy';
+                // Вероятность появления врагов зависит от волны
+                if (game.wave <= 3) {
+                    if (rand < 0.7) enemyType = 'peasant';
+                    else if (rand < 0.9) enemyType = 'bandit';
+                    else enemyType = 'knight-enemy';
+                } else if (game.wave <= 6) {
+                    if (rand < 0.5) enemyType = 'peasant';
+                    else if (rand < 0.8) enemyType = 'bandit';
+                    else enemyType = 'knight-enemy';
+                } else {
+                    if (rand < 0.3) enemyType = 'peasant';
+                    else if (rand < 0.6) enemyType = 'bandit';
+                    else enemyType = 'knight-enemy';
+                }
                 
                 createEnemy(enemyType);
                 game.enemiesSpawned++;
@@ -581,13 +707,118 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Увеличение сложности с каждой волной
                 if (game.enemiesSpawned === game.enemiesInWave && game.enemies.length === 0) {
-                    endWave();
+                    setTimeout(() => endWave(), 2000);
                 }
             }
         }
         
         // Обновление ночного освещения
         updateNightCycle(currentTime);
+    }
+    
+    // Создание эффекта попадания
+    function createHitEffect(position, type) {
+        const particleCount = 10;
+        const geometry = new THREE.BufferGeometry();
+        const vertices = [];
+        
+        for (let i = 0; i < particleCount; i++) {
+            vertices.push(
+                position.x, position.y, position.z
+            );
+        }
+        
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        
+        let particleColor;
+        switch(type) {
+            case 'archer': particleColor = 0x8B4513; break;
+            case 'knight': particleColor = 0x808080; break;
+            case 'mage': particleColor = 0x9400d3; break;
+        }
+        
+        const material = new THREE.PointsMaterial({
+            color: particleColor,
+            size: 0.2,
+            transparent: true
+        });
+        
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+        
+        // Анимация частиц
+        const positions = particles.geometry.attributes.position.array;
+        const velocities = [];
+        
+        for (let i = 0; i < particleCount; i++) {
+            velocities.push({
+                x: (Math.random() - 0.5) * 2,
+                y: Math.random() * 2,
+                z: (Math.random() - 0.5) * 2
+            });
+        }
+        
+        let lifeTime = 0;
+        const maxLifeTime = 1;
+        
+        function animateParticles() {
+            lifeTime += 0.05;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const idx = i * 3;
+                positions[idx] += velocities[i].x * 0.1;
+                positions[idx + 1] += velocities[i].y * 0.1 - lifeTime * 0.5; // Гравитация
+                positions[idx + 2] += velocities[i].z * 0.1;
+            }
+            
+            particles.geometry.attributes.position.needsUpdate = true;
+            material.opacity = 1 - (lifeTime / maxLifeTime);
+            
+            if (lifeTime < maxLifeTime) {
+                requestAnimationFrame(animateParticles);
+            } else {
+                scene.remove(particles);
+                particles.geometry.dispose();
+                particles.material.dispose();
+            }
+        }
+        
+        animateParticles();
+    }
+    
+    // Создание эффекта смерти
+    function createDeathEffect(position) {
+        const geometry = new THREE.SphereGeometry(1, 8, 8);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.7
+        });
+        
+        const sphere = new THREE.Mesh(geometry, material);
+        sphere.position.copy(position);
+        scene.add(sphere);
+        
+        let scale = 1;
+        const duration = 0.5;
+        let elapsed = 0;
+        
+        function animate() {
+            elapsed += 0.05;
+            scale = 1 + elapsed * 2;
+            sphere.scale.setScalar(scale);
+            material.opacity = 0.7 * (1 - elapsed / duration);
+            
+            if (elapsed < duration) {
+                requestAnimationFrame(animate);
+            } else {
+                scene.remove(sphere);
+                sphere.geometry.dispose();
+                sphere.material.dispose();
+            }
+        }
+        
+        animate();
     }
     
     // Обновление цикла дня/ночи
@@ -615,12 +846,18 @@ document.addEventListener('DOMContentLoaded', function() {
             // Включение лунного света
             game.moonLight.intensity = 0.3;
             
+            // Затемнение неба
+            scene.fog.color.setHex(0x0a0a1a);
+            
         } else if (cycleProgress < dayStart && game.isNight) {
             game.isNight = false;
             nightStatus.textContent = 'День';
             
             // Выключение лунного света
             game.moonLight.intensity = 0;
+            
+            // Осветление неба
+            scene.fog.color.setHex(0x1a1a2e);
         }
     }
     
@@ -632,11 +869,12 @@ document.addEventListener('DOMContentLoaded', function() {
         game.enemiesSpawned = 0;
         game.lastSpawn = Date.now();
         game.enemiesInWave = 5 + game.wave * 2;
+        game.enemiesDefeated = 0;
         
         startWaveBtn.disabled = true;
         startWaveBtn.innerHTML = '<i class="fas fa-fighter-jet"></i> Волна в процессе';
         
-        showMessage(`Волна ${game.wave} началась!`, 'info');
+        showMessage(`Волна ${game.wave} началась! Приближается ${game.enemiesInWave} врагов!`, 'info');
     }
     
     // Завершение волны
@@ -646,14 +884,14 @@ document.addEventListener('DOMContentLoaded', function() {
         updateWave();
         
         // Награда за волну
-        const waveReward = 50 + game.wave * 10;
+        const waveReward = 50 + game.wave * 10 + game.enemiesDefeated * 5;
         game.gold += waveReward;
         updateGold();
         
         startWaveBtn.disabled = false;
-        startWaveBtn.innerHTML = '<i class="fas fa-moon"></i> Начать волну ' + game.wave;
+        startWaveBtn.innerHTML = `<i class="fas fa-moon"></i> Начать волну ${game.wave}`;
         
-        showMessage(`Волна пройдена! +${waveReward} золота`, 'success');
+        showMessage(`Волна пройдена! Убито врагов: ${game.enemiesDefeated}. +${waveReward} золота`, 'success');
         
         // Проверка победы
         if (game.wave > 10) {
@@ -670,34 +908,55 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
         
-        // Поиск свободной ячейки
-        const cell = game.grid.find(c => 
-            Math.abs(c.x - x) < game.cellSize/2 && 
-            Math.abs(c.z - z) < game.cellSize/2
-        );
+        // Поиск ближайшей ячейки
+        let closestCell = null;
+        let closestDistance = Infinity;
         
-        if (!cell || cell.occupied) {
-            showMessage('Нельзя разместить здесь!', 'error');
+        game.grid.forEach(cell => {
+            if (!cell.occupied) {
+                const dx = cell.x - x;
+                const dz = cell.z - z;
+                const distance = Math.sqrt(dx * dx + dz * dz);
+                
+                if (distance < closestDistance && distance < game.cellSize) {
+                    closestDistance = distance;
+                    closestCell = cell;
+                }
+            }
+        });
+        
+        if (!closestCell) {
+            showMessage('Нет свободных мест для башни!', 'error');
             return false;
         }
         
         // Создание башни
-        createTower(type, cell.x, cell.z);
-        cell.occupied = true;
+        createTower(type, closestCell.x, closestCell.z);
+        closestCell.occupied = true;
         
         // Списание золота
         game.gold -= cost;
         updateGold();
         
-        showMessage(`${getTowerName(type)} размещена!`, 'success');
+        showMessage(`${getTowerName(type)} размещена за ${cost} золота!`, 'success');
         return true;
     }
     
     // Выбор башни
     function selectTower(tower) {
+        // Сброс предыдущего выбора
+        if (game.selectedTower && game.selectedTower.rangeMesh) {
+            game.selectedTower.rangeMesh.visible = false;
+        }
+        
         game.selectedTower = tower;
         upgradeBtn.disabled = false;
         sellBtn.disabled = false;
+        
+        // Показать радиус атаки выбранной башни
+        if (tower.rangeMesh) {
+            tower.rangeMesh.visible = true;
+        }
         
         // Обновление информации о выбранной башне
         selectedTowerInfo.innerHTML = `
@@ -706,6 +965,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <p>Дальность: ${tower.range}</p>
             <p>Скорость атаки: ${tower.attackSpeed}/сек</p>
             <p>Стоимость улучшения: <i class="fas fa-coins"></i> ${getUpgradeCost(tower)}</p>
+            <p>Стоимость продажи: <i class="fas fa-coins"></i> ${Math.floor(getTowerCost(tower.type) * 0.7 * tower.level)}</p>
         `;
     }
     
@@ -722,9 +982,28 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Улучшение характеристик
         game.selectedTower.level++;
-        game.selectedTower.damage *= 1.5;
-        game.selectedTower.range *= 1.2;
-        game.selectedTower.attackSpeed *= 1.1;
+        game.selectedTower.damage = Math.floor(game.selectedTower.damage * 1.5);
+        game.selectedTower.range = Math.floor(game.selectedTower.range * 1.2);
+        game.selectedTower.attackSpeed = Math.round(game.selectedTower.attackSpeed * 1.1 * 10) / 10;
+        
+        // Обновление радиуса атаки
+        if (game.selectedTower.rangeMesh) {
+            scene.remove(game.selectedTower.rangeMesh);
+            const rangeGeometry = new THREE.CircleGeometry(game.selectedTower.range, 32);
+            const rangeMaterial = new THREE.MeshBasicMaterial({ 
+                color: game.selectedTower.type === 'archer' ? 0x00ff00 : 
+                       game.selectedTower.type === 'knight' ? 0xff0000 : 0x800080,
+                transparent: true,
+                opacity: 0.2,
+                side: THREE.DoubleSide
+            });
+            const rangeMesh = new THREE.Mesh(rangeGeometry, rangeMaterial);
+            rangeMesh.position.set(game.selectedTower.x, 0.1, game.selectedTower.z);
+            rangeMesh.rotation.x = -Math.PI / 2;
+            rangeMesh.visible = true;
+            scene.add(rangeMesh);
+            game.selectedTower.rangeMesh = rangeMesh;
+        }
         
         // Списание золота
         game.gold -= cost;
@@ -741,8 +1020,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function sellTower() {
         if (!game.selectedTower) return;
         
-        // Возврат золота (50% от стоимости улучшений)
-        const refund = Math.floor(getTowerCost(game.selectedTower.type) * 0.5 * game.selectedTower.level);
+        // Возврат золота (70% от стоимости улучшений)
+        const refund = Math.floor(getTowerCost(game.selectedTower.type) * 0.7 * game.selectedTower.level);
         game.gold += refund;
         updateGold();
         
@@ -756,6 +1035,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Удаление башни со сцены
         scene.remove(game.selectedTower.mesh);
         scene.remove(game.selectedTower.platform);
+        if (game.selectedTower.rangeMesh) {
+            scene.remove(game.selectedTower.rangeMesh);
+        }
         
         // Удаление из массива башен
         const index = game.towers.indexOf(game.selectedTower);
@@ -790,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function getUpgradeCost(tower) {
-        return getTowerCost(tower.type) * tower.level * 2;
+        return getTowerCost(tower.type) * tower.level * 1.5;
     }
     
     function updateGold() {
@@ -817,12 +1099,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function showMessage(text, type) {
-        gameMessage.innerHTML = `<p class="${type}">${text}</p>`;
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message-${type}`;
+        messageDiv.innerHTML = `<p>${text}</p>`;
+        gameMessage.appendChild(messageDiv);
         
-        // Автоматическое скрытие сообщения
+        // Автоматическое скрытие сообщения через 3 секунды
         setTimeout(() => {
-            gameMessage.innerHTML = '';
+            if (messageDiv.parentNode === gameMessage) {
+                gameMessage.removeChild(messageDiv);
+            }
         }, 3000);
+        
+        // Ограничение количества сообщений
+        if (gameMessage.children.length > 3) {
+            gameMessage.removeChild(gameMessage.children[0]);
+        }
     }
     
     function gameOver() {
@@ -842,6 +1134,11 @@ document.addEventListener('DOMContentLoaded', function() {
         showMessage('Победа! Вы защитили таверну от всех волн!', 'success');
         game.waveActive = false;
         startWaveBtn.disabled = true;
+        
+        // Показать финальное сообщение
+        setTimeout(() => {
+            alert('Поздравляем! Вы успешно защитили таверну от всех 10 волн врагов!');
+        }, 1500);
     }
     
     function restartGame() {
@@ -856,6 +1153,7 @@ document.addEventListener('DOMContentLoaded', function() {
         game.projectiles = [];
         game.selectedTower = null;
         game.enemiesSpawned = 0;
+        game.enemiesDefeated = 0;
         
         // Обновление UI
         updateGold();
@@ -868,6 +1166,7 @@ document.addEventListener('DOMContentLoaded', function() {
         upgradeBtn.disabled = true;
         sellBtn.disabled = true;
         selectedTowerInfo.innerHTML = `<p>Выберите башню для размещения</p>`;
+        gameMessage.innerHTML = '';
         
         // Очистка сцены
         while(scene.children.length > 0) { 
@@ -895,9 +1194,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     <h4>${getTowerName(game.selectedTowerType)}</h4>
                     <p>Кликните на игровом поле, чтобы разместить башню</p>
                     <p>Стоимость: <i class="fas fa-coins"></i> ${getTowerCost(game.selectedTowerType)}</p>
+                    <p>У вас: <i class="fas fa-coins"></i> ${game.gold}</p>
                 `;
                 
-                showMessage(`Выбрана башня: ${getTowerName(game.selectedTowerType)}`, 'info');
+                showMessage(`Выбрана башня: ${getTowerName(game.selectedTowerType)}. Кликните на поле для размещения.`, 'info');
             });
         });
         
@@ -910,50 +1210,38 @@ document.addEventListener('DOMContentLoaded', function() {
         // Продажа башни
         sellBtn.addEventListener('click', sellTower);
         
-        // Клик по игровому полю для размещения башни
+        // Клик по игровому полю
         renderer.domElement.addEventListener('click', function(event) {
-            if (!game.placingTower || !game.selectedTowerType) return;
-            
-            // Получение координат клика в 3D пространстве
+            // Получение координат мыши
             const rect = this.getBoundingClientRect();
-            const mouse = new THREE.Vector2(
-                ((event.clientX - rect.left) / rect.width) * 2 - 1,
-                -((event.clientY - rect.top) / rect.height) * 2 + 1
-            );
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
             
-            const raycaster = new THREE.Raycaster();
+            // Обновление рейкастера
             raycaster.setFromCamera(mouse, camera);
             
-            // Проверка пересечения с землей
-            const intersects = raycaster.intersectObjects(scene.children.filter(obj => obj.userData.type === 'cell'));
-            
-            if (intersects.length > 0) {
-                const point = intersects[0].point;
-                const placed = placeTower(game.selectedTowerType, point.x, point.z);
+            // Проверка на размещение башни
+            if (game.placingTower && game.selectedTowerType) {
+                // Проверка пересечения с землей
+                const intersects = raycaster.intersectObjects(scene.children.filter(obj => 
+                    obj.userData && obj.userData.type === 'ground'
+                ));
                 
-                if (placed) {
-                    game.placingTower = false;
-                    towerCards.forEach(c => c.classList.remove('selected'));
-                    game.selectedTowerType = null;
+                if (intersects.length > 0) {
+                    const point = intersects[0].point;
+                    const placed = placeTower(game.selectedTowerType, point.x, point.z);
+                    
+                    if (placed) {
+                        game.placingTower = false;
+                        towerCards.forEach(c => c.classList.remove('selected'));
+                        game.selectedTowerType = null;
+                        selectedTowerInfo.innerHTML = `<p>Выберите башню для просмотра информации</p>`;
+                    }
                 }
+                return;
             }
-        });
-        
-        // Клик по башне для выбора
-        renderer.domElement.addEventListener('click', function(event) {
-            // Отмена, если мы в режиме размещения
-            if (game.placingTower) return;
             
-            const rect = this.getBoundingClientRect();
-            const mouse = new THREE.Vector2(
-                ((event.clientX - rect.left) / rect.width) * 2 - 1,
-                -((event.clientY - rect.top) / rect.height) * 2 + 1
-            );
-            
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(mouse, camera);
-            
-            // Проверка пересечения с башнями
+            // Проверка на выбор башни
             const towerMeshes = game.towers.map(t => t.mesh);
             const intersects = raycaster.intersectObjects(towerMeshes);
             
@@ -965,6 +1253,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 // Сброс выбора при клике на пустое место
+                if (game.selectedTower && game.selectedTower.rangeMesh) {
+                    game.selectedTower.rangeMesh.visible = false;
+                }
                 game.selectedTower = null;
                 upgradeBtn.disabled = true;
                 sellBtn.disabled = true;
@@ -977,6 +1268,21 @@ document.addEventListener('DOMContentLoaded', function() {
             camera.aspect = gameCanvas.clientWidth / gameCanvas.clientHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(gameCanvas.clientWidth, gameCanvas.clientHeight);
+        });
+        
+        // Добавляем подсказки при наведении на башни
+        towerCards.forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                const type = this.dataset.tower;
+                const cost = getTowerCost(type);
+                if (game.gold < cost) {
+                    this.style.opacity = '0.7';
+                }
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.opacity = '1';
+            });
         });
     }
     
@@ -1001,6 +1307,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Приветственное сообщение
         setTimeout(() => {
             showMessage('Добро пожаловать в "Защиту Таверны"! Выберите башню и разместите ее на поле.', 'info');
+            showMessage('Нажмите "Начать волну", когда будете готовы к атаке.', 'info');
         }, 1000);
     }
     
