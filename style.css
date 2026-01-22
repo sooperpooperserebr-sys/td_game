@@ -452,3 +452,32 @@ body {
         margin-top: 15px;
     }
 }
+.message-info {
+    background: rgba(30, 60, 114, 0.9);
+    border-left: 4px solid #4a90e2;
+}
+
+.message-success {
+    background: rgba(30, 114, 60, 0.9);
+    border-left: 4px solid #2ecc71;
+}
+
+.message-error {
+    background: rgba(114, 30, 30, 0.9);
+    border-left: 4px solid #e74c3c;
+}
+
+.message-warning {
+    background: rgba(114, 85, 30, 0.9);
+    border-left: 4px solid #f39c12;
+}
+
+.message-gold {
+    background: rgba(114, 99, 30, 0.9);
+    border-left: 4px solid #ffd700;
+}
+
+.game-message div {
+    margin-bottom: 5px;
+    animation: fadeInOut 3s forwards;
+}
