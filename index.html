@@ -3,124 +3,104 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Защита башни от посетителей</title>
+    <title>Таверна: Оборона Средневековья</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Russo+One&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1><i class="fas fa-fort-awesome"></i> ЗАЩИТА БАШНИ</h1>
-            <p class="subtitle">Отбивайте атаки посетителей, стреляя по ним!</p>
+    <div class="game-container">
+        <header class="game-header">
+            <h1>🛡️ Оборона Таверны 🍺</h1>
+            <p class="subtitle">Защити свою таверну от разгневанных посетителей!</p>
         </header>
 
-        <div class="game-container">
+        <div class="main-game-area">
             <div class="game-info">
                 <div class="stats">
                     <div class="stat">
-                        <span class="stat-label">Здоровье башни:</span>
-                        <div class="health-bar">
-                            <div class="health-fill" id="healthFill"></div>
+                        <span class="stat-icon">❤️</span>
+                        <span class="stat-label">Здоровье таверны:</span>
+                        <span id="health" class="stat-value">100</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-icon">💰</span>
+                        <span class="stat-label">Золото:</span>
+                        <span id="gold" class="stat-value">150</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-icon">🌙</span>
+                        <span class="stat-label">Волна:</span>
+                        <span id="wave" class="stat-value">1</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-icon">⏱️</span>
+                        <span class="stat-label">До волны:</span>
+                        <span id="wave-timer" class="stat-value">30</span>
+                    </div>
+                </div>
+
+                <div class="towers">
+                    <h2>🏰 Доступные охранники:</h2>
+                    <div class="tower-list">
+                        <div class="tower-card" data-type="archer">
+                            <div class="tower-icon">🏹</div>
+                            <h3>Лучник</h3>
+                            <p>Стреляет на дальние дистанции</p>
+                            <p class="tower-cost">💰 50 золота</p>
                         </div>
-                        <span class="stat-value" id="healthValue">100</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Уровень:</span>
-                        <span class="stat-value" id="level">1</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Посетители:</span>
-                        <span class="stat-value" id="visitorsDefeated">0</span>
-                    </div>
-                    <div class="stat">
-                        <span class="stat-label">Счёт:</span>
-                        <span class="stat-value" id="score">0</span>
+                        <div class="tower-card" data-type="knight">
+                            <div class="tower-icon">⚔️</div>
+                            <h3>Рыцарь</h3>
+                            <p>Сильный удар вблизи</p>
+                            <p class="tower-cost">💰 80 золота</p>
+                        </div>
+                        <div class="tower-card" data-type="mage">
+                            <div class="tower-icon">🔮</div>
+                            <h3>Маг</h3>
+                            <p>Магические атаки по площади</p>
+                            <p class="tower-cost">💰 120 золота</p>
+                        </div>
                     </div>
                 </div>
 
                 <div class="controls">
-                    <button id="startBtn" class="btn">
-                        <i class="fas fa-play"></i> Начать игру
-                    </button>
-                    <button id="pauseBtn" class="btn">
-                        <i class="fas fa-pause"></i> Пауза
-                    </button>
-                    <button id="restartBtn" class="btn">
-                        <i class="fas fa-redo"></i> Заново
-                    </button>
-                    <div class="difficulty">
-                        <span>Сложность:</span>
-                        <select id="difficulty">
-                            <option value="easy">Лёгкая</option>
-                            <option value="normal" selected>Нормальная</option>
-                            <option value="hard">Сложная</option>
-                        </select>
-                    </div>
+                    <button id="start-wave" class="btn btn-start">Начать волну</button>
+                    <button id="upgrade-tavern" class="btn btn-upgrade">Улучшить таверну (100)</button>
+                    <button id="sell-tower" class="btn btn-sell">Продать охранника</button>
                 </div>
             </div>
 
-            <div class="game-area">
-                <div class="tower" id="tower">
-                    <div class="tower-top">
-                        <i class="fas fa-flag"></i>
-                    </div>
-                    <div class="tower-body"></div>
-                    <div class="tower-base"></div>
+            <div class="game-field">
+                <canvas id="gameCanvas"></canvas>
+                <div class="tavern">
+                    <div class="tavern-building">🍺 Таверна</div>
                 </div>
-
-                <div class="game-field" id="gameField">
-                    <!-- Посетители будут появляться здесь -->
-                </div>
-
-                <div class="instructions">
-                    <p><i class="fas fa-mouse-pointer"></i> Кликайте по посетителям, чтобы атаковать их</p>
-                    <p><i class="fas fa-bolt"></i> За каждого посетителя +10 очков, за босса +100!</p>
-                </div>
-            </div>
-
-            <div class="upgrades">
-                <h3><i class="fas fa-cogs"></i> Улучшения</h3>
-                <div class="upgrade-list">
-                    <div class="upgrade-item">
-                        <span>Усиление атаки (+5 урона)</span>
-                        <button class="upgrade-btn" data-upgrade="damage">
-                            <i class="fas fa-bolt"></i> 50 очков
-                        </button>
-                    </div>
-                    <div class="upgrade-item">
-                        <span>Восстановление здоровья (+25 HP)</span>
-                        <button class="upgrade-btn" data-upgrade="heal">
-                            <i class="fas fa-heart"></i> 40 очков
-                        </button>
-                    </div>
-                    <div class="upgrade-item">
-                        <span>Ускорение атаки</span>
-                        <button class="upgrade-btn" data-upgrade="speed">
-                            <i class="fas fa-tachometer-alt"></i> 60 очков
-                        </button>
+                <div class="enemies-info">
+                    <h3>👹 Враги:</h3>
+                    <div class="enemy-types">
+                        <div class="enemy-type">
+                            <span class="enemy-icon">🍺</span> Пьяный посетитель - медленный, но крепкий
+                        </div>
+                        <div class="enemy-type">
+                            <span class="enemy-icon">💢</span> Разъярённый клиент - быстрый и агрессивный
+                        </div>
+                        <div class="enemy-type">
+                            <span class="enemy-icon">👑</span> Недовольный барон - мощный босс
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="message" id="message"></div>
-
-        <footer>
-            <p>Игра "Защита башни" | Создано с использованием HTML, CSS и JavaScript</p>
-            <p class="hint">Совет: улучшайте башню между волнами посетителей!</p>
-        </footer>
+        <div class="game-log">
+            <h3>📜 Журнал событий:</h3>
+            <div id="log" class="log-content">
+                <p>Добро пожаловать в таверну! Ночь приближается...</p>
+            </div>
+        </div>
     </div>
-
-    <audio id="shootSound" preload="auto">
-        <source src="https://assets.mixkit.co/sfx/preview/mixkit-laser-weapon-shot-1671.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="hitSound" preload="auto">
-        <source src="https://assets.mixkit.co/sfx/preview/mixkit-arrow-whoosh-1491.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="upgradeSound" preload="auto">
-        <source src="https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3" type="audio/mpeg">
-    </audio>
 
     <script src="game.js"></script>
 </body>
