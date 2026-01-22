@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function() {
         grid: [],
         path: [],
         lastSpawn: 0,
-        spawnInterval: 2000,
+        spawnInterval: 1500,
         enemiesInWave: 5,
         enemiesSpawned: 0,
         lastFrameTime: 0,
@@ -146,6 +146,8 @@ document.addEventListener('DOMContentLoaded', function() {
             for (let z = -12; z <= 12; z += game.cellSize) {
                 // Не размещаем башни на дороге
                 if (Math.abs(z - 5) < 3 && Math.abs(x) < 3) continue;
+                // Не размещаем башни слишком близко к таверне
+                if (Math.abs(z + 12) < 6 && Math.abs(x) < 6) continue;
                 
                 gridPositions.push({x, z});
                 
@@ -251,28 +253,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const pathMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, visible: false });
         const pathLine = new THREE.Line(pathGeometry, pathMaterial);
         scene.add(pathLine);
-        
-        // Добавляем указатели пути
-        for (let i = 0; i < game.path.length - 1; i++) {
-            const point = game.path[i];
-            const nextPoint = game.path[i + 1];
-            
-            // Создаем стрелку направления
-            const dir = new THREE.Vector3(nextPoint.x - point.x, 0, nextPoint.z - point.z);
-            const length = dir.length();
-            dir.normalize();
-            
-            const arrowGeometry = new THREE.ConeGeometry(0.3, 1, 4);
-            const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.3 });
-            const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
-            arrow.position.set(point.x + dir.x * 2, 0.2, point.z + dir.z * 2);
-            arrow.lookAt(new THREE.Vector3(nextPoint.x, 0.2, nextPoint.z));
-            arrow.rotateX(Math.PI / 2);
-            scene.add(arrow);
-        }
     }
     
-    // Создание башни
+    // Создание башни (уменьшенные размеры)
     function createTower(type, x, z) {
         const tower = {
             type,
@@ -290,11 +273,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         let geometry, material, height;
         
-        // Создание 3D модели башни в зависимости от типа
+        // Уменьшенные размеры башен
         switch(type) {
             case 'archer':
-                height = 5;
-                geometry = new THREE.CylinderGeometry(1.5, 2, height, 8);
+                height = 3; // было 5
+                geometry = new THREE.CylinderGeometry(0.8, 1.0, height, 8); // уменьшено
                 material = new THREE.MeshStandardMaterial({ 
                     color: 0x8B4513,
                     roughness: 0.8,
@@ -302,8 +285,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 break;
             case 'knight':
-                height = 6;
-                geometry = new THREE.BoxGeometry(3, height, 3);
+                height = 3.5; // было 6
+                geometry = new THREE.BoxGeometry(1.5, height, 1.5); // уменьшено
                 material = new THREE.MeshStandardMaterial({ 
                     color: 0x808080,
                     roughness: 0.7,
@@ -311,8 +294,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 break;
             case 'mage':
-                height = 5;
-                geometry = new THREE.ConeGeometry(2, height, 6);
+                height = 3; // было 5
+                geometry = new THREE.ConeGeometry(1.0, height, 6); // уменьшено
                 material = new THREE.MeshStandardMaterial({ 
                     color: 0x4b0082,
                     roughness: 0.5,
@@ -329,20 +312,20 @@ document.addEventListener('DOMContentLoaded', function() {
         towerMesh.userData = { type: 'tower', tower: tower };
         scene.add(towerMesh);
         
-        // Добавление платформы под башней
-        const platformGeometry = new THREE.CylinderGeometry(2.5, 2.5, 0.5, 8);
+        // Уменьшенная платформа под башней
+        const platformGeometry = new THREE.CylinderGeometry(1.5, 1.5, 0.3, 8); // уменьшено
         const platformMaterial = new THREE.MeshStandardMaterial({ 
             color: 0x5d4037,
             roughness: 0.9,
             metalness: 0.1
         });
         const platform = new THREE.Mesh(platformGeometry, platformMaterial);
-        platform.position.set(x, 0.25, z);
+        platform.position.set(x, 0.15, z);
         platform.castShadow = true;
         platform.receiveShadow = true;
         scene.add(platform);
         
-        // Добавление визуализации радиуса атаки (скрытой по умолчанию)
+        // Добавление визуализации радиуса атаки
         const rangeGeometry = new THREE.CircleGeometry(tower.range, 32);
         const rangeMaterial = new THREE.MeshBasicMaterial({ 
             color: type === 'archer' ? 0x00ff00 : type === 'knight' ? 0xff0000 : 0x800080,
@@ -381,22 +364,22 @@ document.addEventListener('DOMContentLoaded', function() {
         
         let geometry, material, size, color;
         
-        // Создание 3D модели врага в зависимости от типа
+        // Создание 3D модели врага
         switch(type) {
             case 'peasant':
-                size = 1.5;
+                size = 1.0; // уменьшено
                 color = 0x6b8e23;
-                geometry = new THREE.ConeGeometry(size, 3, 4);
+                geometry = new THREE.ConeGeometry(size, 2, 4); // уменьшено
                 break;
             case 'bandit':
-                size = 2;
+                size = 1.2; // уменьшено
                 color = 0x8b0000;
-                geometry = new THREE.CylinderGeometry(size, size, 3, 6);
+                geometry = new THREE.CylinderGeometry(size, size, 2, 6); // уменьшено
                 break;
             case 'knight-enemy':
-                size = 2.5;
+                size = 1.5; // уменьшено
                 color = 0x2f4f4f;
-                geometry = new THREE.BoxGeometry(size, 4, size);
+                geometry = new THREE.BoxGeometry(size, 3, size); // уменьшено
                 break;
         }
         
@@ -414,14 +397,14 @@ document.addEventListener('DOMContentLoaded', function() {
         scene.add(enemyMesh);
         
         // Создание полоски здоровья над врагом
-        const healthBarGeometry = new THREE.PlaneGeometry(2, 0.2);
+        const healthBarGeometry = new THREE.PlaneGeometry(1.5, 0.15);
         const healthBarMaterial = new THREE.MeshBasicMaterial({ 
             color: 0x00ff00,
             side: THREE.DoubleSide
         });
         const healthBarMesh = new THREE.Mesh(healthBarGeometry, healthBarMaterial);
         healthBarMesh.position.set(enemy.position.x, size + 0.5, enemy.position.z);
-        healthBarMesh.visible = false; // Показываем только при повреждении
+        healthBarMesh.visible = false;
         scene.add(healthBarMesh);
         
         enemy.mesh = enemyMesh;
@@ -463,7 +446,7 @@ document.addEventListener('DOMContentLoaded', function() {
             damage,
             type,
             progress: 0,
-            speed: 0.1,
+            speed: 0.15,
             mesh: null
         };
         
@@ -471,17 +454,17 @@ document.addEventListener('DOMContentLoaded', function() {
         
         switch(type) {
             case 'archer':
-                size = 0.3;
+                size = 0.2; // уменьшено
                 geometry = new THREE.SphereGeometry(size, 8, 8);
                 material = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
                 break;
             case 'knight':
-                size = 0.5;
+                size = 0.3; // уменьшено
                 geometry = new THREE.BoxGeometry(size, size, size);
                 material = new THREE.MeshBasicMaterial({ color: 0x808080 });
                 break;
             case 'mage':
-                size = 0.4;
+                size = 0.25; // уменьшено
                 geometry = new THREE.OctahedronGeometry(size);
                 material = new THREE.MeshBasicMaterial({ 
                     color: 0x9400d3,
@@ -527,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Обновление полоски здоровья
                     if (enemy.healthBar) {
-                        enemy.healthBar.position.set(enemy.position.x, enemy.mesh.position.y + 1, enemy.position.z);
+                        enemy.healthBar.position.set(enemy.position.x, enemy.mesh.position.y + 0.8, enemy.position.z);
                         // Поворачиваем полоску здоровья к камере
                         enemy.healthBar.lookAt(camera.position);
                     }
@@ -566,9 +549,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 game.enemiesDefeated++;
                 updateGold();
                 showMessage(`+${enemy.goldReward} золота`, 'gold');
-                
-                // Эффект смерти
-                createDeathEffect(enemy.mesh.position);
                 
                 // Удаление врага
                 scene.remove(enemy.mesh);
@@ -611,7 +591,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 };
                 const to = {
                     x: tower.target.position.x,
-                    y: tower.target.mesh.position.y,
+                    y: tower.target.mesh.position.y + 0.5,
                     z: tower.target.position.z
                 };
                 
@@ -619,14 +599,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 tower.lastAttack = currentTime;
                 
                 // Поворот башни в сторону цели
-                const dx = to.x - from.x;
-                const dz = to.z - from.z;
                 tower.mesh.lookAt(to.x, from.y, to.z);
             }
             
-            // Анимация башни (легкое покачивание)
-            tower.mesh.position.y = (tower.type === 'archer' ? 2.5 : tower.type === 'knight' ? 3 : 2.5) + 
-                                   Math.sin(game.gameTime * 2 + tower.x) * 0.1;
+            // Легкая анимация башни
+            tower.mesh.position.y = (tower.type === 'archer' ? 1.5 : tower.type === 'knight' ? 1.75 : 1.5) + 
+                                   Math.sin(game.gameTime * 2 + tower.x) * 0.05;
         });
         
         // Обновление снарядов
@@ -636,28 +614,37 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (projectile.progress >= 1) {
                 // Снаряд достиг цели
-                const enemy = game.enemies.find(e => 
-                    Math.abs(e.position.x - projectile.to.x) < 1 && 
-                    Math.abs(e.position.z - projectile.to.z) < 1
-                );
+                let enemyHit = null;
+                let closestDistance = 1; // Максимальное расстояние для попадания
                 
-                if (enemy) {
-                    enemy.health -= projectile.damage;
-                    updateEnemyHealthBar(enemy);
+                // Ищем ближайшего врага к точке попадания
+                game.enemies.forEach(enemy => {
+                    const dx = enemy.position.x - projectile.to.x;
+                    const dz = enemy.position.z - projectile.to.z;
+                    const distance = Math.sqrt(dx * dx + dz * dz);
                     
-                    // Эффект попадания
-                    createHitEffect(projectile.mesh.position, projectile.type);
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        enemyHit = enemy;
+                    }
+                });
+                
+                if (enemyHit) {
+                    enemyHit.health -= projectile.damage;
+                    updateEnemyHealthBar(enemyHit);
                     
                     // Магический урон по области
                     if (projectile.type === 'mage') {
                         game.enemies.forEach(e => {
-                            const dx = e.position.x - enemy.position.x;
-                            const dz = e.position.z - enemy.position.z;
-                            const distance = Math.sqrt(dx * dx + dz * dz);
-                            
-                            if (distance < 3 && e !== enemy) {
-                                e.health -= projectile.damage * 0.5;
-                                updateEnemyHealthBar(e);
+                            if (e !== enemyHit) {
+                                const dx = e.position.x - enemyHit.position.x;
+                                const dz = e.position.z - enemyHit.position.z;
+                                const distance = Math.sqrt(dx * dx + dz * dz);
+                                
+                                if (distance < 3) {
+                                    e.health -= projectile.damage * 0.5;
+                                    updateEnemyHealthBar(e);
+                                }
                             }
                         });
                     }
@@ -670,7 +657,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Движение снаряда
                 const x = projectile.from.x + (projectile.to.x - projectile.from.x) * projectile.progress;
                 const y = projectile.from.y + (projectile.to.y - projectile.from.y) * projectile.progress + 
-                         Math.sin(projectile.progress * Math.PI) * 3; // Дуга траектории
+                         Math.sin(projectile.progress * Math.PI) * 2; // Дуга траектории
                 const z = projectile.from.z + (projectile.to.z - projectile.from.z) * projectile.progress;
                 projectile.mesh.position.set(x, y, z);
                 
@@ -705,120 +692,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 game.enemiesSpawned++;
                 game.lastSpawn = currentTime;
                 
-                // Увеличение сложности с каждой волной
+                // Если все враги спавнены и уничтожены - заканчиваем волну
                 if (game.enemiesSpawned === game.enemiesInWave && game.enemies.length === 0) {
-                    setTimeout(() => endWave(), 2000);
+                    setTimeout(() => endWave(), 1000);
                 }
             }
         }
         
         // Обновление ночного освещения
         updateNightCycle(currentTime);
-    }
-    
-    // Создание эффекта попадания
-    function createHitEffect(position, type) {
-        const particleCount = 10;
-        const geometry = new THREE.BufferGeometry();
-        const vertices = [];
-        
-        for (let i = 0; i < particleCount; i++) {
-            vertices.push(
-                position.x, position.y, position.z
-            );
-        }
-        
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-        
-        let particleColor;
-        switch(type) {
-            case 'archer': particleColor = 0x8B4513; break;
-            case 'knight': particleColor = 0x808080; break;
-            case 'mage': particleColor = 0x9400d3; break;
-        }
-        
-        const material = new THREE.PointsMaterial({
-            color: particleColor,
-            size: 0.2,
-            transparent: true
-        });
-        
-        const particles = new THREE.Points(geometry, material);
-        scene.add(particles);
-        
-        // Анимация частиц
-        const positions = particles.geometry.attributes.position.array;
-        const velocities = [];
-        
-        for (let i = 0; i < particleCount; i++) {
-            velocities.push({
-                x: (Math.random() - 0.5) * 2,
-                y: Math.random() * 2,
-                z: (Math.random() - 0.5) * 2
-            });
-        }
-        
-        let lifeTime = 0;
-        const maxLifeTime = 1;
-        
-        function animateParticles() {
-            lifeTime += 0.05;
-            
-            for (let i = 0; i < particleCount; i++) {
-                const idx = i * 3;
-                positions[idx] += velocities[i].x * 0.1;
-                positions[idx + 1] += velocities[i].y * 0.1 - lifeTime * 0.5; // Гравитация
-                positions[idx + 2] += velocities[i].z * 0.1;
-            }
-            
-            particles.geometry.attributes.position.needsUpdate = true;
-            material.opacity = 1 - (lifeTime / maxLifeTime);
-            
-            if (lifeTime < maxLifeTime) {
-                requestAnimationFrame(animateParticles);
-            } else {
-                scene.remove(particles);
-                particles.geometry.dispose();
-                particles.material.dispose();
-            }
-        }
-        
-        animateParticles();
-    }
-    
-    // Создание эффекта смерти
-    function createDeathEffect(position) {
-        const geometry = new THREE.SphereGeometry(1, 8, 8);
-        const material = new THREE.MeshBasicMaterial({
-            color: 0xff0000,
-            transparent: true,
-            opacity: 0.7
-        });
-        
-        const sphere = new THREE.Mesh(geometry, material);
-        sphere.position.copy(position);
-        scene.add(sphere);
-        
-        let scale = 1;
-        const duration = 0.5;
-        let elapsed = 0;
-        
-        function animate() {
-            elapsed += 0.05;
-            scale = 1 + elapsed * 2;
-            sphere.scale.setScalar(scale);
-            material.opacity = 0.7 * (1 - elapsed / duration);
-            
-            if (elapsed < duration) {
-                requestAnimationFrame(animate);
-            } else {
-                scene.remove(sphere);
-                sphere.geometry.dispose();
-                sphere.material.dispose();
-            }
-        }
-        
-        animate();
     }
     
     // Обновление цикла дня/ночи
@@ -879,6 +761,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Завершение волны
     function endWave() {
+        if (!game.waveActive) return;
+        
         game.waveActive = false;
         game.wave++;
         updateWave();
@@ -1009,8 +893,8 @@ document.addEventListener('DOMContentLoaded', function() {
         game.gold -= cost;
         updateGold();
         
-        // Визуальное улучшение башни
-        game.selectedTower.mesh.scale.multiplyScalar(1.1);
+        // Визуальное улучшение башни (умеренное увеличение)
+        game.selectedTower.mesh.scale.multiplyScalar(1.05);
         
         showMessage(`${getTowerName(game.selectedTower.type)} улучшена до уровня ${game.selectedTower.level}!`, 'success');
         selectTower(game.selectedTower); // Обновление информации
@@ -1044,6 +928,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (index > -1) game.towers.splice(index, 1);
         
         // Сброс выбора
+        if (game.selectedTower.rangeMesh) {
+            game.selectedTower.rangeMesh.visible = false;
+        }
         game.selectedTower = null;
         upgradeBtn.disabled = true;
         sellBtn.disabled = true;
@@ -1072,7 +959,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function getUpgradeCost(tower) {
-        return getTowerCost(tower.type) * tower.level * 1.5;
+        return Math.floor(getTowerCost(tower.type) * tower.level * 1.5);
     }
     
     function updateGold() {
