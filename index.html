@@ -3,154 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Таверна: Защита от посетителей | Tower Defense 3D</title>
+    <title>Tower Defense: Защита Таверны</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
 </head>
 <body>
-    <div class="game-container">
-        <header class="game-header">
-            <h1><i class="fas fa-fort-awesome-alt"></i> Защита Таверны</h1>
-            <p class="game-subtitle">Средневековая 3D Tower Defense игра</p>
-        </header>
-
-        <div class="game-wrapper">
-            <div class="game-info">
-                <div class="stats-panel">
-                    <div class="stat">
-                        <span class="stat-label">Здоровье таверны:</span>
-                        <div class="health-bar">
-                            <div class="health-fill" id="tavernHealth"></div>
-                        </div>
-                        <span class="stat-value" id="healthValue">100</span>
-                    </div>
-                    
-                    <div class="stat">
-                        <span class="stat-label">Золото:</span>
-                        <span class="stat-value gold"><i class="fas fa-coins"></i> <span id="goldValue">150</span></span>
-                    </div>
-                    
-                    <div class="stat">
-                        <span class="stat-label">Волна:</span>
-                        <span class="stat-value"><span id="waveValue">1</span> / 10</span>
-                    </div>
-                    
-                    <div class="stat">
-                        <span class="stat-label">Ночное время:</span>
-                        <div class="time-indicator">
-                            <div class="time-fill" id="nightIndicator"></div>
-                        </div>
-                        <span class="stat-value" id="nightStatus">Скоро ночь</span>
-                    </div>
-                </div>
-
-                <div class="towers-panel">
-                    <h3><i class="fas fa-tower-observation"></i> Охранники-башни</h3>
-                    <div class="towers-list">
-                        <div class="tower-card" data-tower="archer">
-                            <div class="tower-icon archer-icon">
-                                <i class="fas fa-bow-arrow"></i>
-                            </div>
-                            <div class="tower-info">
-                                <h4>Лучник</h4>
-                                <p>Стреляет с дальнего расстояния</p>
-                                <div class="tower-cost">
-                                    <i class="fas fa-coins"></i> <span>50</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="tower-card" data-tower="knight">
-                            <div class="tower-icon knight-icon">
-                                <i class="fas fa-shield-alt"></i>
-                            </div>
-                            <div class="tower-info">
-                                <h4>Рыцарь</h4>
-                                <p>Сильная атака в ближнем бою</p>
-                                <div class="tower-cost">
-                                    <i class="fas fa-coins"></i> <span>100</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="tower-card" data-tower="mage">
-                            <div class="tower-icon mage-icon">
-                                <i class="fas fa-hat-wizard"></i>
-                            </div>
-                            <div class="tower-info">
-                                <h4>Маг</h4>
-                                <p>Наносит магический урон по области</p>
-                                <div class="tower-cost">
-                                    <i class="fas fa-coins"></i> <span>150</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="selected-tower-info" id="selectedTowerInfo">
-                        <p>Выберите башню для размещения</p>
-                    </div>
-                </div>
-
-                <div class="enemies-panel">
-                    <h3><i class="fas fa-users"></i> Враги-посетители</h3>
-                    <div class="enemies-list">
-                        <div class="enemy-type">
-                            <div class="enemy-icon peasant"></div>
-                            <div class="enemy-info">
-                                <h4>Крестьянин</h4>
-                                <p>Слабый, но многочисленный</p>
-                            </div>
-                        </div>
-                        
-                        <div class="enemy-type">
-                            <div class="enemy-icon bandit"></div>
-                            <div class="enemy-info">
-                                <h4>Бандит</h4>
-                                <p>Средний урон и здоровье</p>
-                            </div>
-                        </div>
-                        
-                        <div class="enemy-type">
-                            <div class="enemy-icon knight-enemy"></div>
-                            <div class="enemy-info">
-                                <h4>Рыцарь тьмы</h4>
-                                <p>Сильный и медленный</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="controls">
-                    <button id="startWaveBtn" class="btn btn-action">
-                        <i class="fas fa-moon"></i> Начать волну
-                    </button>
-                    <button id="upgradeBtn" class="btn btn-upgrade" disabled>
-                        <i class="fas fa-arrow-up"></i> Улучшить башню
-                    </button>
-                    <button id="sellBtn" class="btn btn-sell" disabled>
-                        <i class="fas fa-coins"></i> Продать башню
-                    </button>
-                </div>
+    <div id="game-container">
+        <div id="game-header">
+            <h1>Tower Defense: Защита Таверны</h1>
+            <div id="game-stats">
+                <div>Золото: <span id="gold">100</span></div>
+                <div>Жизни таверны: <span id="health">100</span></div>
+                <div>Волна: <span id="wave">1</span></div>
+                <div>Врагов осталось: <span id="enemies-left">0</span></div>
             </div>
-
-            <div class="game-scene">
-                <div id="gameCanvas"></div>
-                <div class="game-message" id="gameMessage"></div>
-                <div class="instructions">
-                    <p><strong>Управление:</strong></p>
-                    <p><i class="fas fa-mouse-pointer"></i> Клик - выбрать/разместить башню</p>
-                    <p><i class="fas fa-arrows-alt"></i> Колесико мыши - приближение/отдаление</p>
-                    <p><i class="fas fa-hand-paper"></i> Перетащите - поворот камеры</p>
+        </div>
+        
+        <div id="game-content">
+            <div id="game-canvas-container">
+                <canvas id="game-canvas"></canvas>
+                <div id="game-message"></div>
+            </div>
+            
+            <div id="game-controls">
+                <div id="towers-panel">
+                    <h3>Охранники (башни)</h3>
+                    <div class="tower-option" data-type="archer">
+                        <div class="tower-icon">🏹</div>
+                        <div class="tower-info">
+                            <div class="tower-name">Лучник</div>
+                            <div class="tower-cost">Стоимость: 30</div>
+                            <div class="tower-desc">Стреляет на среднюю дистанцию</div>
+                        </div>
+                    </div>
+                    <div class="tower-option" data-type="knight">
+                        <div class="tower-icon">⚔️</div>
+                        <div class="tower-info">
+                            <div class="tower-name">Рыцарь</div>
+                            <div class="tower-cost">Стоимость: 50</div>
+                            <div class="tower-desc">Ближний бой, высокая прочность</div>
+                        </div>
+                    </div>
+                    <div class="tower-option" data-type="wizard">
+                        <div class="tower-icon">🔮</div>
+                        <div class="tower-info">
+                            <div class="tower-name">Маг</div>
+                            <div class="tower-cost">Стоимость: 70</div>
+                            <div class="tower-desc">Магические атаки по области</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="game-actions">
+                    <h3>Управление</h3>
+                    <button id="start-wave">Начать волну</button>
+                    <button id="upgrade-tower" disabled>Улучшить башню (50)</button>
+                    <button id="sell-tower" disabled>Продать башню</button>
+                    <button id="restart-game">Начать заново</button>
+                    
+                    <div id="game-instructions">
+                        <h4>Как играть:</h4>
+                        <ul>
+                            <li>Кликните на клетку для размещения охранника</li>
+                            <li>Кликните на охранника для выбора</li>
+                            <li>Нажмите "Начать волну" для атаки врагов</li>
+                            <li>Защитите таверну от 10 волн врагов</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div id="enemies-panel">
+                    <h3>Враги</h3>
+                    <div class="enemy-info">
+                        <div class="enemy-icon">🍺</div>
+                        <div class="enemy-desc">
+                            <strong>Пьяный посетитель</strong> - медленный, но выносливый
+                        </div>
+                    </div>
+                    <div class="enemy-info">
+                        <div class="enemy-icon">🔪</div>
+                        <div class="enemy-desc">
+                            <strong>Разбойник</strong> - быстрый, наносит средний урон
+                        </div>
+                    </div>
+                    <div class="enemy-info">
+                        <div class="enemy-icon">🧙</div>
+                        <div class="enemy-desc">
+                            <strong>Темный маг</strong> - медленный, но мощный
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-
-        <footer class="game-footer">
-            <p>Защитите свою таверну от злых посетителей! Размещайте охранников-башни на пути врагов.</p>
-        </footer>
+        
+        <div id="game-footer">
+            <p>Защитите свою таверну от злых посетителей! Ночью атаки усиливаются.</p>
+        </div>
     </div>
 
     <script src="script.js"></script>
