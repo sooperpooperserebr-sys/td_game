@@ -1,1203 +1,918 @@
-// script.js
-document.addEventListener('DOMContentLoaded', function() {
-    // Инициализация игры
-    const game = {
-        gold: 150,
+// Основные переменные игры
+let scene, camera, renderer, controls;
+let gameState = {
+    gold: 100,
+    health: 100,
+    wave: 1,
+    enemiesLeft: 0,
+    selectedTowerType: null,
+    selectedTower: null,
+    isWaveActive: false,
+    towers: [],
+    enemies: [],
+    projectiles: [],
+    pathPoints: [],
+    isGameOver: false,
+    isGameWon: false
+};
+
+// Элементы интерфейса
+const goldElement = document.getElementById('gold');
+const healthElement = document.getElementById('health');
+const waveElement = document.getElementById('wave');
+const enemiesLeftElement = document.getElementById('enemies-left');
+const startWaveButton = document.getElementById('start-wave');
+const upgradeTowerButton = document.getElementById('upgrade-tower');
+const sellTowerButton = document.getElementById('sell-tower');
+const restartButton = document.getElementById('restart-game');
+const gameMessage = document.getElementById('game-message');
+const towerOptions = document.querySelectorAll('.tower-option');
+
+// Конфигурация игры
+const gameConfig = {
+    gridSize: 8,
+    cellSize: 3,
+    groundSize: 30,
+    tavernPosition: { x: 0, y: 0, z: -10 }
+};
+
+// Инициализация Three.js сцены
+function initScene() {
+    // Создание сцены
+    scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x1a1a2e, 10, 50);
+    
+    // Создание камеры
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(20, 25, 20);
+    camera.lookAt(0, 0, 0);
+    
+    // Создание рендерера
+    const canvas = document.getElementById('game-canvas');
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(canvas.parentElement.clientWidth, canvas.parentElement.clientHeight);
+    renderer.setClearColor(0x1a1a2e);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    
+    // Добавление элементов управления камерой
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 10;
+    controls.maxDistance = 50;
+    controls.maxPolarAngle = Math.PI / 2 - 0.1;
+    
+    // Добавление освещения
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(20, 30, 10);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 50;
+    directionalLight.shadow.camera.left = -30;
+    directionalLight.shadow.camera.right = 30;
+    directionalLight.shadow.camera.top = 30;
+    directionalLight.shadow.camera.bottom = -30;
+    scene.add(directionalLight);
+    
+    // Создание игрового поля
+    createGameField();
+    
+    // Создание таверны
+    createTavern();
+    
+    // Создание дорожки для врагов
+    createEnemyPath();
+    
+    // Обработка изменения размера окна
+    window.addEventListener('resize', onWindowResize);
+    
+    // Обработка кликов по игровому полю
+    canvas.addEventListener('click', onCanvasClick);
+    
+    // Инициализация обработчиков событий интерфейса
+    initEventListeners();
+    
+    // Запуск игрового цикла
+    animate();
+}
+
+// Создание игрового поля
+function createGameField() {
+    // Создание земли
+    const groundGeometry = new THREE.PlaneGeometry(gameConfig.groundSize, gameConfig.groundSize);
+    const groundMaterial = new THREE.MeshLambertMaterial({ 
+        color: 0x3a2c1a,
+        side: THREE.DoubleSide
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+    
+    // Создание сетки для размещения башен
+    const gridHelper = new THREE.GridHelper(gameConfig.groundSize, gameConfig.gridSize, 0x8b7355, 0x5d4a2e);
+    gridHelper.position.y = 0.01;
+    scene.add(gridHelper);
+    
+    // Создание клеток для размещения башен
+    for (let x = -gameConfig.groundSize/2 + gameConfig.cellSize/2; x < gameConfig.groundSize/2; x += gameConfig.cellSize) {
+        for (let z = -gameConfig.groundSize/2 + gameConfig.cellSize/2; z < gameConfig.groundSize/2; z += gameConfig.cellSize) {
+            // Не размещаем клетки слишком близко к таверне
+            if (Math.sqrt(x*x + (z - gameConfig.tavernPosition.z)*(z - gameConfig.tavernPosition.z)) < 5) continue;
+            
+            const cellGeometry = new THREE.BoxGeometry(gameConfig.cellSize - 0.1, 0.1, gameConfig.cellSize - 0.1);
+            const cellMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x5d4a2e,
+                transparent: true,
+                opacity: 0.3
+            });
+            const cell = new THREE.Mesh(cellGeometry, cellMaterial);
+            cell.position.set(x, 0.05, z);
+            cell.userData = { type: 'cell', x: Math.round(x), z: Math.round(z) };
+            cell.receiveShadow = true;
+            scene.add(cell);
+        }
+    }
+}
+
+// Создание таверны
+function createTavern() {
+    // Основание таверны
+    const baseGeometry = new THREE.BoxGeometry(6, 4, 6);
+    const baseMaterial = new THREE.MeshLambertMaterial({ color: 0x8b7355 });
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.copy(gameConfig.tavernPosition);
+    base.position.y = 2;
+    base.castShadow = true;
+    base.receiveShadow = true;
+    scene.add(base);
+    
+    // Крыша таверны
+    const roofGeometry = new THREE.ConeGeometry(4, 3, 4);
+    const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x5d2e2e });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.copy(gameConfig.tavernPosition);
+    roof.position.y = 5.5;
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    scene.add(roof);
+    
+    // Дверь таверны
+    const doorGeometry = new THREE.BoxGeometry(2, 3, 0.2);
+    const doorMaterial = new THREE.MeshLambertMaterial({ color: 0x3a2c1a });
+    const door = new THREE.Mesh(doorGeometry, doorMaterial);
+    door.position.copy(gameConfig.tavernPosition);
+    door.position.z += 3;
+    door.position.y = 1.5;
+    door.castShadow = true;
+    door.receiveShadow = true;
+    scene.add(door);
+    
+    // Окна таверны
+    for (let i = -1; i <= 1; i += 2) {
+        const windowGeometry = new THREE.BoxGeometry(1, 1, 0.1);
+        const windowMaterial = new THREE.MeshLambertMaterial({ color: 0xe6cc80 });
+        const window = new THREE.Mesh(windowGeometry, windowMaterial);
+        window.position.copy(gameConfig.tavernPosition);
+        window.position.x += i * 2;
+        window.position.z += 3;
+        window.position.y = 3;
+        window.castShadow = true;
+        window.receiveShadow = true;
+        scene.add(window);
+    }
+    
+    // Добавление пользовательских данных для таверны
+    base.userData = { type: 'tavern', health: gameState.health };
+}
+
+// Создание пути для врагов
+function createEnemyPath() {
+    // Путь врагов - спираль к таверне
+    const path = [];
+    const radius = 12;
+    const segments = 20;
+    
+    for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        const r = radius * (1 - i / segments);
+        const x = r * Math.cos(angle);
+        const z = r * Math.sin(angle);
+        path.push(new THREE.Vector3(x, 0.5, z));
+    }
+    
+    // Последняя точка - таверна
+    path.push(new THREE.Vector3(gameConfig.tavernPosition.x, 0.5, gameConfig.tavernPosition.z + 3));
+    
+    gameConfig.pathPoints = path;
+    
+    // Визуализация пути (для отладки)
+    const pathGeometry = new THREE.BufferGeometry().setFromPoints(path);
+    const pathMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, opacity: 0.3, transparent: true });
+    const pathLine = new THREE.Line(pathGeometry, pathMaterial);
+    scene.add(pathLine);
+}
+
+// Создание башни
+function createTower(type, position) {
+    const tower = {
+        type: type,
+        position: position,
+        level: 1,
+        damage: 0,
+        range: 0,
+        fireRate: 0,
+        lastShot: 0,
+        mesh: null,
+        target: null
+    };
+    
+    let geometry, material, color;
+    
+    // Настройки в зависимости от типа башни
+    switch(type) {
+        case 'archer':
+            color = 0x2e5d3a;
+            tower.damage = 10;
+            tower.range = 8;
+            tower.fireRate = 1000; // мс
+            break;
+        case 'knight':
+            color = 0x5d5d5d;
+            tower.damage = 15;
+            tower.range = 4;
+            tower.fireRate = 1500;
+            break;
+        case 'wizard':
+            color = 0x3a2c5d;
+            tower.damage = 20;
+            tower.range = 10;
+            tower.fireRate = 2000;
+            break;
+    }
+    
+    // Создание 3D модели башни
+    // Основание
+    const baseGeometry = new THREE.CylinderGeometry(0.5, 0.7, 1, 8);
+    const baseMaterial = new THREE.MeshLambertMaterial({ color: color });
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.copy(position);
+    base.position.y = 0.5;
+    base.castShadow = true;
+    base.receiveShadow = true;
+    
+    // Верхняя часть (зависит от типа башни)
+    let topGeometry;
+    if (type === 'archer') {
+        topGeometry = new THREE.ConeGeometry(0.4, 1.5, 8);
+    } else if (type === 'knight') {
+        topGeometry = new THREE.BoxGeometry(0.8, 1.5, 0.8);
+    } else {
+        topGeometry = new THREE.SphereGeometry(0.6, 8, 8);
+    }
+    
+    const topMaterial = new THREE.MeshLambertMaterial({ color: color });
+    const top = new THREE.Mesh(topGeometry, topMaterial);
+    top.position.copy(position);
+    top.position.y = 1.75;
+    top.castShadow = true;
+    top.receiveShadow = true;
+    
+    // Группировка частей башни
+    const towerGroup = new THREE.Group();
+    towerGroup.add(base);
+    towerGroup.add(top);
+    towerGroup.position.copy(position);
+    
+    // Добавление пользовательских данных
+    towerGroup.userData = { type: 'tower', tower: tower };
+    tower.mesh = towerGroup;
+    
+    scene.add(towerGroup);
+    gameState.towers.push(tower);
+    
+    return tower;
+}
+
+// Создание врага
+function createEnemy(type) {
+    const enemy = {
+        type: type,
+        health: 0,
+        maxHealth: 0,
+        speed: 0,
+        damage: 0,
+        reward: 0,
+        position: gameConfig.pathPoints[0].clone(),
+        pathIndex: 0,
+        mesh: null
+    };
+    
+    let geometry, color;
+    
+    // Настройки в зависимости от типа врага
+    switch(type) {
+        case 'drunk': // Пьяный посетитель
+            color = 0x8b7355;
+            enemy.health = 30;
+            enemy.maxHealth = 30;
+            enemy.speed = 0.03;
+            enemy.damage = 5;
+            enemy.reward = 10;
+            geometry = new THREE.CylinderGeometry(0.5, 0.5, 1.5, 8);
+            break;
+        case 'bandit': // Разбойник
+            color = 0x5d2e2e;
+            enemy.health = 20;
+            enemy.maxHealth = 20;
+            enemy.speed = 0.05;
+            enemy.damage = 10;
+            enemy.reward = 15;
+            geometry = new THREE.ConeGeometry(0.5, 1.5, 8);
+            break;
+        case 'darkmage': // Темный маг
+            color = 0x3a2c5d;
+            enemy.health = 50;
+            enemy.maxHealth = 50;
+            enemy.speed = 0.02;
+            enemy.damage = 20;
+            enemy.reward = 25;
+            geometry = new THREE.SphereGeometry(0.7, 8, 8);
+            break;
+    }
+    
+    const material = new THREE.MeshLambertMaterial({ color: color });
+    const enemyMesh = new THREE.Mesh(geometry, material);
+    enemyMesh.position.copy(enemy.position);
+    enemyMesh.castShadow = true;
+    enemyMesh.receiveShadow = true;
+    
+    // Добавление пользовательских данных
+    enemyMesh.userData = { type: 'enemy', enemy: enemy };
+    enemy.mesh = enemyMesh;
+    
+    scene.add(enemyMesh);
+    gameState.enemies.push(enemy);
+    
+    return enemy;
+}
+
+// Создание снаряда
+function createProjectile(tower, target) {
+    const projectile = {
+        tower: tower,
+        target: target,
+        damage: tower.damage,
+        position: tower.position.clone(),
+        mesh: null
+    };
+    
+    let geometry, color;
+    
+    // Настройки в зависимости от типа башни
+    switch(tower.type) {
+        case 'archer':
+            color = 0x2e5d3a;
+            geometry = new THREE.ConeGeometry(0.1, 0.5, 4);
+            break;
+        case 'knight':
+            color = 0x5d5d5d;
+            geometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+            break;
+        case 'wizard':
+            color = 0x9b30ff;
+            geometry = new THREE.SphereGeometry(0.2, 8, 8);
+            break;
+    }
+    
+    const material = new THREE.MeshLambertMaterial({ color: color });
+    const projectileMesh = new THREE.Mesh(geometry, material);
+    projectileMesh.position.copy(projectile.position);
+    projectileMesh.position.y = 2;
+    projectileMesh.castShadow = true;
+    projectileMesh.receiveShadow = true;
+    
+    projectile.mesh = projectileMesh;
+    scene.add(projectileMesh);
+    gameState.projectiles.push(projectile);
+    
+    return projectile;
+}
+
+// Обновление игры
+function updateGame(deltaTime) {
+    // Если игра окончена, не обновляем
+    if (gameState.isGameOver || gameState.isGameWon) return;
+    
+    // Обновление врагов
+    updateEnemies(deltaTime);
+    
+    // Обновление башен
+    updateTowers(deltaTime);
+    
+    // Обновление снарядов
+    updateProjectiles(deltaTime);
+    
+    // Проверка условий победы/поражения
+    checkGameConditions();
+}
+
+// Обновление врагов
+function updateEnemies(deltaTime) {
+    for (let i = gameState.enemies.length - 1; i >= 0; i--) {
+        const enemy = gameState.enemies[i];
+        
+        // Движение врага по пути
+        if (enemy.pathIndex < gameConfig.pathPoints.length - 1) {
+            const targetPoint = gameConfig.pathPoints[enemy.pathIndex + 1];
+            const direction = targetPoint.clone().sub(enemy.position).normalize();
+            
+            enemy.position.add(direction.multiplyScalar(enemy.speed * deltaTime));
+            enemy.mesh.position.copy(enemy.position);
+            
+            // Проверка достижения точки пути
+            if (enemy.position.distanceTo(targetPoint) < 0.2) {
+                enemy.pathIndex++;
+            }
+        } else {
+            // Враг достиг таверны
+            gameState.health -= enemy.damage;
+            updateUI();
+            
+            // Удаление врага
+            scene.remove(enemy.mesh);
+            gameState.enemies.splice(i, 1);
+            gameState.enemiesLeft = gameState.enemies.length;
+            
+            continue;
+        }
+        
+        // Проверка здоровья врага
+        if (enemy.health <= 0) {
+            // Награда за убийство врага
+            gameState.gold += enemy.reward;
+            updateUI();
+            
+            // Удаление врага
+            scene.remove(enemy.mesh);
+            gameState.enemies.splice(i, 1);
+            gameState.enemiesLeft = gameState.enemies.length;
+        }
+    }
+}
+
+// Обновление башен
+function updateTowers(deltaTime) {
+    const currentTime = Date.now();
+    
+    for (const tower of gameState.towers) {
+        // Поиск цели
+        if (!tower.target || tower.target.health <= 0) {
+            tower.target = findTarget(tower);
+        }
+        
+        // Атака цели
+        if (tower.target && currentTime - tower.lastShot > tower.fireRate) {
+            const distance = tower.position.distanceTo(tower.target.position);
+            
+            if (distance <= tower.range) {
+                // Создание снаряда
+                createProjectile(tower, tower.target);
+                tower.lastShot = currentTime;
+                
+                // Для рыцаря (ближний бой) наносим урон сразу
+                if (tower.type === 'knight') {
+                    tower.target.health -= tower.damage;
+                    
+                    // Если враг убит, сбрасываем цель
+                    if (tower.target.health <= 0) {
+                        tower.target = null;
+                    }
+                }
+            } else {
+                tower.target = null;
+            }
+        }
+    }
+}
+
+// Поиск цели для башни
+function findTarget(tower) {
+    let closestEnemy = null;
+    let closestDistance = tower.range;
+    
+    for (const enemy of gameState.enemies) {
+        const distance = tower.position.distanceTo(enemy.position);
+        
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            closestEnemy = enemy;
+        }
+    }
+    
+    return closestEnemy;
+}
+
+// Обновление снарядов
+function updateProjectiles(deltaTime) {
+    for (let i = gameState.projectiles.length - 1; i >= 0; i--) {
+        const projectile = gameState.projectiles[i];
+        
+        // Проверка наличия цели
+        if (!projectile.target || projectile.target.health <= 0) {
+            scene.remove(projectile.mesh);
+            gameState.projectiles.splice(i, 1);
+            continue;
+        }
+        
+        // Движение снаряда к цели
+        const direction = projectile.target.position.clone().sub(projectile.position).normalize();
+        const speed = 0.1 * deltaTime;
+        projectile.position.add(direction.multiplyScalar(speed));
+        projectile.mesh.position.copy(projectile.position);
+        
+        // Проверка попадания
+        if (projectile.position.distanceTo(projectile.target.position) < 0.5) {
+            // Нанесение урона
+            projectile.target.health -= projectile.damage;
+            
+            // Удаление снаряда
+            scene.remove(projectile.mesh);
+            gameState.projectiles.splice(i, 1);
+        }
+    }
+}
+
+// Проверка условий игры
+function checkGameConditions() {
+    // Проверка поражения
+    if (gameState.health <= 0) {
+        gameState.isGameOver = true;
+        showGameMessage("Вы проиграли! Таверна разрушена.");
+        return;
+    }
+    
+    // Проверка победы
+    if (gameState.wave > 10 && gameState.enemies.length === 0 && !gameState.isWaveActive) {
+        gameState.isGameWon = true;
+        showGameMessage("Победа! Вы защитили таверну!");
+        return;
+    }
+    
+    // Проверка окончания волны
+    if (gameState.isWaveActive && gameState.enemies.length === 0) {
+        gameState.isWaveActive = false;
+        
+        // Награда за завершение волны
+        gameState.gold += 50;
+        updateUI();
+        
+        showGameMessage(`Волна ${gameState.wave} завершена!`, 1500);
+        
+        // Если не последняя волна, увеличиваем номер волны
+        if (gameState.wave <= 10) {
+            gameState.wave++;
+            updateUI();
+        }
+    }
+}
+
+// Начало волны врагов
+function startWave() {
+    if (gameState.isWaveActive || gameState.isGameOver || gameState.isGameWon) return;
+    
+    gameState.isWaveActive = true;
+    showGameMessage(`Волна ${gameState.wave} началась!`, 1500);
+    
+    // Создание врагов в зависимости от номера волны
+    let enemyCount = 5 + gameState.wave * 2;
+    if (enemyCount > 25) enemyCount = 25;
+    
+    gameState.enemiesLeft = enemyCount;
+    updateUI();
+    
+    // Создание врагов с задержкой
+    for (let i = 0; i < enemyCount; i++) {
+        setTimeout(() => {
+            if (!gameState.isWaveActive) return;
+            
+            let enemyType;
+            const rand = Math.random();
+            
+            if (gameState.wave <= 3) {
+                enemyType = rand < 0.7 ? 'drunk' : 'bandit';
+            } else if (gameState.wave <= 6) {
+                if (rand < 0.5) enemyType = 'drunk';
+                else if (rand < 0.8) enemyType = 'bandit';
+                else enemyType = 'darkmage';
+            } else {
+                if (rand < 0.3) enemyType = 'drunk';
+                else if (rand < 0.6) enemyType = 'bandit';
+                else enemyType = 'darkmage';
+            }
+            
+            createEnemy(enemyType);
+        }, i * 1000);
+    }
+}
+
+// Обработка клика по игровому полю
+function onCanvasClick(event) {
+    if (gameState.isGameOver || gameState.isGameWon) return;
+    
+    const canvas = document.getElementById('game-canvas');
+    const rect = canvas.getBoundingClientRect();
+    
+    // Преобразование координат мыши в координаты Three.js
+    const mouse = new THREE.Vector2();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // Raycasting для определения объекта
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    
+    if (intersects.length > 0) {
+        const clickedObject = intersects[0].object;
+        const userData = clickedObject.userData;
+        
+        // Если клик по клетке и выбрана башня
+        if (userData.type === 'cell' && gameState.selectedTowerType) {
+            const position = new THREE.Vector3(userData.x, 0, userData.z);
+            
+            // Проверка стоимости башни
+            const cost = getTowerCost(gameState.selectedTowerType);
+            if (gameState.gold >= cost) {
+                // Проверка, нет ли уже башни на этой клетке
+                const towerHere = gameState.towers.find(t => 
+                    Math.abs(t.position.x - position.x) < 0.1 && 
+                    Math.abs(t.position.z - position.z) < 0.1
+                );
+                
+                if (!towerHere) {
+                    // Создание башни
+                    createTower(gameState.selectedTowerType, position);
+                    
+                    // Вычитание стоимости
+                    gameState.gold -= cost;
+                    updateUI();
+                    
+                    // Сброс выбора башни
+                    deselectTower();
+                }
+            } else {
+                showGameMessage("Недостаточно золота!", 1000);
+            }
+        }
+        // Если клик по башне
+        else if (userData.type === 'tower') {
+            // Выбор башни для улучшения/продажи
+            selectTower(userData.tower);
+        }
+    }
+}
+
+// Получение стоимости башни
+function getTowerCost(type) {
+    switch(type) {
+        case 'archer': return 30;
+        case 'knight': return 50;
+        case 'wizard': return 70;
+        default: return 0;
+    }
+}
+
+// Выбор типа башни
+function selectTowerType(type) {
+    gameState.selectedTowerType = type;
+    gameState.selectedTower = null;
+    
+    // Обновление UI
+    towerOptions.forEach(option => {
+        if (option.dataset.type === type) {
+            option.classList.add('selected');
+        } else {
+            option.classList.remove('selected');
+        }
+    });
+    
+    // Отключение кнопок улучшения/продажи
+    upgradeTowerButton.disabled = true;
+    sellTowerButton.disabled = true;
+}
+
+// Выбор башни
+function selectTower(tower) {
+    gameState.selectedTower = tower;
+    gameState.selectedTowerType = null;
+    
+    // Обновление UI
+    towerOptions.forEach(option => option.classList.remove('selected'));
+    
+    // Включение кнопок улучшения/продажи
+    upgradeTowerButton.disabled = false;
+    sellTowerButton.disabled = false;
+    
+    // Подсветка выбранной башни
+    gameState.towers.forEach(t => {
+        if (t.mesh) {
+            t.mesh.children.forEach(child => {
+                child.material.emissive = t === tower ? new THREE.Color(0x333333) : new THREE.Color(0x000000);
+            });
+        }
+    });
+}
+
+// Сброс выбора башни
+function deselectTower() {
+    gameState.selectedTowerType = null;
+    gameState.selectedTower = null;
+    
+    // Обновление UI
+    towerOptions.forEach(option => option.classList.remove('selected'));
+    
+    // Отключение кнопок улучшения/продажи
+    upgradeTowerButton.disabled = true;
+    sellTowerButton.disabled = true;
+    
+    // Сброс подсветки
+    gameState.towers.forEach(t => {
+        if (t.mesh) {
+            t.mesh.children.forEach(child => {
+                child.material.emissive = new THREE.Color(0x000000);
+            });
+        }
+    });
+}
+
+// Улучшение башни
+function upgradeTower() {
+    if (!gameState.selectedTower || gameState.gold < 50) return;
+    
+    const tower = gameState.selectedTower;
+    
+    // Улучшение башни
+    tower.level++;
+    tower.damage += 5;
+    tower.range += 1;
+    tower.fireRate = Math.max(500, tower.fireRate - 100);
+    
+    // Вычитание стоимости улучшения
+    gameState.gold -= 50;
+    updateUI();
+    
+    // Визуальное улучшение башни
+    if (tower.mesh && tower.mesh.children[1]) {
+        tower.mesh.children[1].scale.multiplyScalar(1.2);
+    }
+    
+    showGameMessage(`Башня улучшена до уровня ${tower.level}!`, 1000);
+}
+
+// Продажа башни
+function sellTower() {
+    if (!gameState.selectedTower) return;
+    
+    const tower = gameState.selectedTower;
+    const refund = Math.floor(getTowerCost(tower.type) * 0.7);
+    
+    // Удаление башни
+    scene.remove(tower.mesh);
+    
+    // Удаление из массива башен
+    const index = gameState.towers.indexOf(tower);
+    if (index > -1) {
+        gameState.towers.splice(index, 1);
+    }
+    
+    // Возврат золота
+    gameState.gold += refund;
+    updateUI();
+    
+    // Сброс выбора
+    deselectTower();
+    
+    showGameMessage(`Башня продана за ${refund} золота!`, 1000);
+}
+
+// Показать сообщение в игре
+function showGameMessage(text, duration = 3000) {
+    gameMessage.textContent = text;
+    gameMessage.style.display = 'block';
+    
+    if (duration > 0) {
+        setTimeout(() => {
+            gameMessage.style.display = 'none';
+        }, duration);
+    }
+}
+
+// Обновление интерфейса
+function updateUI() {
+    goldElement.textContent = gameState.gold;
+    healthElement.textContent = gameState.health;
+    waveElement.textContent = gameState.wave;
+    enemiesLeftElement.textContent = gameState.enemiesLeft;
+    
+    // Обновление состояния кнопки начала волны
+    startWaveButton.disabled = gameState.isWaveActive || gameState.isGameOver || gameState.isGameWon;
+    
+    // Обновление текста кнопки улучшения
+    upgradeTowerButton.textContent = `Улучшить башню (${50})`;
+    upgradeTowerButton.disabled = !gameState.selectedTower || gameState.gold < 50;
+}
+
+// Перезапуск игры
+function restartGame() {
+    // Удаление всех объектов из сцены
+    while(scene.children.length > 0) { 
+        scene.remove(scene.children[0]); 
+    }
+    
+    // Сброс состояния игры
+    gameState = {
+        gold: 100,
+        health: 100,
         wave: 1,
-        tavernHealth: 100,
-        maxHealth: 100,
-        isNight: false,
-        waveActive: false,
+        enemiesLeft: 0,
+        selectedTowerType: null,
+        selectedTower: null,
+        isWaveActive: false,
         towers: [],
         enemies: [],
         projectiles: [],
-        selectedTowerType: null,
-        selectedTower: null,
-        placingTower: false,
-        cellSize: 4,
-        grid: [],
-        path: [],
-        lastSpawn: 0,
-        spawnInterval: 1500,
-        enemiesInWave: 5,
-        enemiesSpawned: 0,
-        lastFrameTime: 0,
-        gameTime: 0,
-        enemiesDefeated: 0
+        isGameOver: false,
+        isGameWon: false
     };
+    
+    // Инициализация сцены заново
+    initScene();
+    updateUI();
+    deselectTower();
+    
+    showGameMessage("Новая игра началась!", 2000);
+}
 
-    // Элементы DOM
-    const goldElement = document.getElementById('goldValue');
-    const waveElement = document.getElementById('waveValue');
-    const healthElement = document.getElementById('healthValue');
-    const healthBar = document.getElementById('tavernHealth');
-    const nightIndicator = document.getElementById('nightIndicator');
-    const nightStatus = document.getElementById('nightStatus');
-    const startWaveBtn = document.getElementById('startWaveBtn');
-    const upgradeBtn = document.getElementById('upgradeBtn');
-    const sellBtn = document.getElementById('sellBtn');
-    const selectedTowerInfo = document.getElementById('selectedTowerInfo');
-    const gameMessage = document.getElementById('gameMessage');
-    const gameCanvas = document.getElementById('gameCanvas');
+// Инициализация обработчиков событий
+function initEventListeners() {
+    // Обработчики для выбора башен
+    towerOptions.forEach(option => {
+        option.addEventListener('click', () => {
+            selectTowerType(option.dataset.type);
+        });
+    });
+    
+    // Обработчики для кнопок
+    startWaveButton.addEventListener('click', startWave);
+    upgradeTowerButton.addEventListener('click', upgradeTower);
+    sellTowerButton.addEventListener('click', sellTower);
+    restartButton.addEventListener('click', restartGame);
+}
 
-    // Инициализация Three.js сцены
-    let scene, camera, renderer, controls;
-    let towerCards = document.querySelectorAll('.tower-card');
-    let raycaster = new THREE.Raycaster();
-    let mouse = new THREE.Vector2();
+// Обработка изменения размера окна
+function onWindowResize() {
+    const canvas = document.getElementById('game-canvas');
+    const container = canvas.parentElement;
     
-    // Инициализация Three.js
-    function initThreeJS() {
-        // Создание сцены
-        scene = new THREE.Scene();
-        scene.fog = new THREE.Fog(0x1a1a2e, 10, 50);
-        
-        // Создание камеры
-        camera = new THREE.PerspectiveCamera(75, gameCanvas.clientWidth / gameCanvas.clientHeight, 0.1, 1000);
-        camera.position.set(30, 25, 30);
-        camera.lookAt(0, 0, 0);
-        
-        // Создание рендерера
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(gameCanvas.clientWidth, gameCanvas.clientHeight);
-        renderer.setClearColor(0x1a1a2e);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        gameCanvas.appendChild(renderer.domElement);
-        
-        // Орбитальные контролы для камеры
-        controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2;
-        controls.minDistance = 10;
-        controls.maxDistance = 50;
-        
-        // Освещение
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
-        scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(10, 20, 5);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.camera.left = -30;
-        directionalLight.shadow.camera.right = 30;
-        directionalLight.shadow.camera.top = 30;
-        directionalLight.shadow.camera.bottom = -30;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        scene.add(directionalLight);
-        
-        // Лунный свет (для ночи)
-        const moonLight = new THREE.DirectionalLight(0x6688cc, 0);
-        moonLight.position.set(-10, 20, -5);
-        moonLight.castShadow = true;
-        scene.add(moonLight);
-        game.moonLight = moonLight;
-        
-        // Создание игрового поля
-        createGameField();
-        
-        // Создание таверны
-        createTavern();
-        
-        // Создание пути для врагов
-        createPath();
-        
-        // Запуск анимации
-        animate();
-    }
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
     
-    // Создание игрового поля
-    function createGameField() {
-        const fieldSize = 30;
-        const gridHelper = new THREE.GridHelper(fieldSize, fieldSize/2, 0x444444, 0x222222);
-        scene.add(gridHelper);
-        
-        // Создание земли
-        const groundGeometry = new THREE.PlaneGeometry(fieldSize, fieldSize);
-        const groundMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x3d2b1f,
-            roughness: 0.8,
-            metalness: 0.2
-        });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        ground.userData = { type: 'ground' };
-        scene.add(ground);
-        
-        // Создание дороги
-        const roadGeometry = new THREE.PlaneGeometry(6, fieldSize);
-        const roadMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x5d4037,
-            roughness: 0.9,
-            metalness: 0.1
-        });
-        const road = new THREE.Mesh(roadGeometry, roadMaterial);
-        road.rotation.x = -Math.PI / 2;
-        road.position.z = 5;
-        road.receiveShadow = true;
-        scene.add(road);
-        
-        // Создание области для размещения башен
-        const gridPositions = [];
-        for (let x = -12; x <= 12; x += game.cellSize) {
-            for (let z = -12; z <= 12; z += game.cellSize) {
-                // Не размещаем башни на дороге
-                if (Math.abs(z - 5) < 3 && Math.abs(x) < 3) continue;
-                // Не размещаем башни слишком близко к таверне
-                if (Math.abs(z + 12) < 6 && Math.abs(x) < 6) continue;
-                
-                gridPositions.push({x, z});
-                
-                // Визуализация ячеек для отладки
-                const cellGeometry = new THREE.BoxGeometry(game.cellSize - 0.5, 0.1, game.cellSize - 0.5);
-                const cellMaterial = new THREE.MeshBasicMaterial({ 
-                    color: 0x00ff00,
-                    transparent: true,
-                    opacity: 0.05,
-                    visible: false
-                });
-                const cell = new THREE.Mesh(cellGeometry, cellMaterial);
-                cell.position.set(x, 0.05, z);
-                cell.userData = { type: 'cell', x, z };
-                scene.add(cell);
-                game.grid.push({x, z, occupied: false, mesh: cell});
-            }
-        }
-    }
+    renderer.setSize(container.clientWidth, container.clientHeight);
+}
+
+// Игровой цикл
+let lastTime = 0;
+function animate(currentTime = 0) {
+    requestAnimationFrame(animate);
     
-    // Создание таверны
-    function createTavern() {
-        // Основание таверны
-        const baseGeometry = new THREE.BoxGeometry(8, 6, 8);
-        const baseMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x8B4513,
-            roughness: 0.9,
-            metalness: 0.1
-        });
-        const base = new THREE.Mesh(baseGeometry, baseMaterial);
-        base.position.set(0, 3, -12);
-        base.castShadow = true;
-        base.receiveShadow = true;
-        base.userData = { type: 'tavern' };
-        scene.add(base);
-        
-        // Крыша таверны
-        const roofGeometry = new THREE.ConeGeometry(6, 4, 4);
-        const roofMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x8b0000,
-            roughness: 0.8,
-            metalness: 0.2
-        });
-        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-        roof.position.set(0, 8, -12);
-        roof.rotation.y = Math.PI / 4;
-        roof.castShadow = true;
-        scene.add(roof);
-        
-        // Дверь таверны
-        const doorGeometry = new THREE.BoxGeometry(2, 4, 0.5);
-        const doorMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x5d4037,
-            roughness: 0.8,
-            metalness: 0.3
-        });
-        const door = new THREE.Mesh(doorGeometry, doorMaterial);
-        door.position.set(0, 2, -8.5);
-        door.castShadow = true;
-        scene.add(door);
-        
-        // Окна таверны
-        for (let i = -1; i <= 1; i += 2) {
-            const windowGeometry = new THREE.BoxGeometry(1.5, 1.5, 0.2);
-            const windowMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0x87CEEB,
-                emissive: 0x222222,
-                roughness: 0.1,
-                metalness: 0.9
-            });
-            const window = new THREE.Mesh(windowGeometry, windowMaterial);
-            window.position.set(i * 2, 4, -8.5);
-            window.castShadow = true;
-            scene.add(window);
-        }
-        
-        // Добавляем свет из окон
-        for (let i = -1; i <= 1; i += 2) {
-            const windowLight = new THREE.PointLight(0xffaa00, 0.5, 10);
-            windowLight.position.set(i * 2, 4, -8);
-            scene.add(windowLight);
-        }
-        
-        game.tavern = { base, roof, door, health: game.tavernHealth };
-    }
-    
-    // Создание пути для врагов
-    function createPath() {
-        // Путь состоит из контрольных точек (линия от спавна до таверны)
-        game.path = [
-            {x: -15, z: 5},
-            {x: -8, z: 5},
-            {x: -8, z: 12},
-            {x: 8, z: 12},
-            {x: 8, z: 5},
-            {x: 0, z: 5},
-            {x: 0, z: -8}  // Таверна
-        ];
-        
-        // Визуализация пути (для отладки)
-        const pathPoints = game.path.map(p => new THREE.Vector3(p.x, 0.1, p.z));
-        const pathGeometry = new THREE.BufferGeometry().setFromPoints(pathPoints);
-        const pathMaterial = new THREE.LineBasicMaterial({ color: 0xff0000, visible: false });
-        const pathLine = new THREE.Line(pathGeometry, pathMaterial);
-        scene.add(pathLine);
-    }
-    
-    // Создание башни (уменьшенные размеры)
-    function createTower(type, x, z) {
-        const tower = {
-            type,
-            x,
-            z,
-            level: 1,
-            damage: type === 'archer' ? 10 : type === 'knight' ? 20 : 15,
-            range: type === 'archer' ? 12 : type === 'knight' ? 6 : 10,
-            attackSpeed: type === 'archer' ? 1.5 : type === 'knight' ? 1 : 2,
-            lastAttack: 0,
-            target: null,
-            mesh: null,
-            rangeMesh: null
-        };
-        
-        let geometry, material, height;
-        
-        // Уменьшенные размеры башен
-        switch(type) {
-            case 'archer':
-                height = 3; // было 5
-                geometry = new THREE.CylinderGeometry(0.8, 1.0, height, 8); // уменьшено
-                material = new THREE.MeshStandardMaterial({ 
-                    color: 0x8B4513,
-                    roughness: 0.8,
-                    metalness: 0.2
-                });
-                break;
-            case 'knight':
-                height = 3.5; // было 6
-                geometry = new THREE.BoxGeometry(1.5, height, 1.5); // уменьшено
-                material = new THREE.MeshStandardMaterial({ 
-                    color: 0x808080,
-                    roughness: 0.7,
-                    metalness: 0.3
-                });
-                break;
-            case 'mage':
-                height = 3; // было 5
-                geometry = new THREE.ConeGeometry(1.0, height, 6); // уменьшено
-                material = new THREE.MeshStandardMaterial({ 
-                    color: 0x4b0082,
-                    roughness: 0.5,
-                    metalness: 0.5,
-                    emissive: 0x220022
-                });
-                break;
-        }
-        
-        const towerMesh = new THREE.Mesh(geometry, material);
-        towerMesh.position.set(x, height/2, z);
-        towerMesh.castShadow = true;
-        towerMesh.receiveShadow = true;
-        towerMesh.userData = { type: 'tower', tower: tower };
-        scene.add(towerMesh);
-        
-        // Уменьшенная платформа под башней
-        const platformGeometry = new THREE.CylinderGeometry(1.5, 1.5, 0.3, 8); // уменьшено
-        const platformMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x5d4037,
-            roughness: 0.9,
-            metalness: 0.1
-        });
-        const platform = new THREE.Mesh(platformGeometry, platformMaterial);
-        platform.position.set(x, 0.15, z);
-        platform.castShadow = true;
-        platform.receiveShadow = true;
-        scene.add(platform);
-        
-        // Добавление визуализации радиуса атаки
-        const rangeGeometry = new THREE.CircleGeometry(tower.range, 32);
-        const rangeMaterial = new THREE.MeshBasicMaterial({ 
-            color: type === 'archer' ? 0x00ff00 : type === 'knight' ? 0xff0000 : 0x800080,
-            transparent: true,
-            opacity: 0.2,
-            side: THREE.DoubleSide
-        });
-        const rangeMesh = new THREE.Mesh(rangeGeometry, rangeMaterial);
-        rangeMesh.position.set(x, 0.1, z);
-        rangeMesh.rotation.x = -Math.PI / 2;
-        rangeMesh.visible = false;
-        scene.add(rangeMesh);
-        
-        tower.mesh = towerMesh;
-        tower.platform = platform;
-        tower.rangeMesh = rangeMesh;
-        game.towers.push(tower);
-        
-        return tower;
-    }
-    
-    // Создание врага
-    function createEnemy(type) {
-        const enemy = {
-            type,
-            health: type === 'peasant' ? 30 : type === 'bandit' ? 60 : 100,
-            maxHealth: type === 'peasant' ? 30 : type === 'bandit' ? 60 : 100,
-            speed: type === 'peasant' ? 1.5 : type === 'bandit' ? 2 : 0.8,
-            damage: type === 'peasant' ? 5 : type === 'bandit' ? 10 : 20,
-            goldReward: type === 'peasant' ? 10 : type === 'bandit' ? 20 : 30,
-            pathIndex: 0,
-            position: {x: game.path[0].x, z: game.path[0].z},
-            mesh: null,
-            healthBar: null
-        };
-        
-        let geometry, material, size, color;
-        
-        // Создание 3D модели врага
-        switch(type) {
-            case 'peasant':
-                size = 1.0; // уменьшено
-                color = 0x6b8e23;
-                geometry = new THREE.ConeGeometry(size, 2, 4); // уменьшено
-                break;
-            case 'bandit':
-                size = 1.2; // уменьшено
-                color = 0x8b0000;
-                geometry = new THREE.CylinderGeometry(size, size, 2, 6); // уменьшено
-                break;
-            case 'knight-enemy':
-                size = 1.5; // уменьшено
-                color = 0x2f4f4f;
-                geometry = new THREE.BoxGeometry(size, 3, size); // уменьшено
-                break;
-        }
-        
-        material = new THREE.MeshStandardMaterial({ 
-            color,
-            roughness: 0.8,
-            metalness: 0.2
-        });
-        
-        const enemyMesh = new THREE.Mesh(geometry, material);
-        enemyMesh.position.set(enemy.position.x, size/2, enemy.position.z);
-        enemyMesh.castShadow = true;
-        enemyMesh.receiveShadow = true;
-        enemyMesh.userData = { type: 'enemy', enemy: enemy };
-        scene.add(enemyMesh);
-        
-        // Создание полоски здоровья над врагом
-        const healthBarGeometry = new THREE.PlaneGeometry(1.5, 0.15);
-        const healthBarMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x00ff00,
-            side: THREE.DoubleSide
-        });
-        const healthBarMesh = new THREE.Mesh(healthBarGeometry, healthBarMaterial);
-        healthBarMesh.position.set(enemy.position.x, size + 0.5, enemy.position.z);
-        healthBarMesh.visible = false;
-        scene.add(healthBarMesh);
-        
-        enemy.mesh = enemyMesh;
-        enemy.healthBar = healthBarMesh;
-        game.enemies.push(enemy);
-        
-        return enemy;
-    }
-    
-    // Обновление полоски здоровья врага
-    function updateEnemyHealthBar(enemy) {
-        if (enemy.healthBar) {
-            const healthPercent = enemy.health / enemy.maxHealth;
-            enemy.healthBar.scale.x = healthPercent;
-            
-            // Изменение цвета в зависимости от здоровья
-            if (healthPercent > 0.5) {
-                enemy.healthBar.material.color.setHex(0x00ff00);
-            } else if (healthPercent > 0.2) {
-                enemy.healthBar.material.color.setHex(0xffff00);
-            } else {
-                enemy.healthBar.material.color.setHex(0xff0000);
-            }
-            
-            // Показываем полоску здоровья на 2 секунды после получения урона
-            enemy.healthBar.visible = true;
-            if (enemy.healthTimeout) clearTimeout(enemy.healthTimeout);
-            enemy.healthTimeout = setTimeout(() => {
-                if (enemy.healthBar) enemy.healthBar.visible = false;
-            }, 2000);
-        }
-    }
-    
-    // Создание снаряда
-    function createProjectile(from, to, damage, type) {
-        const projectile = {
-            from: {x: from.x, y: from.y, z: from.z},
-            to: {x: to.x, y: to.y, z: to.z},
-            damage,
-            type,
-            progress: 0,
-            speed: 0.15,
-            mesh: null
-        };
-        
-        let geometry, material, size;
-        
-        switch(type) {
-            case 'archer':
-                size = 0.2; // уменьшено
-                geometry = new THREE.SphereGeometry(size, 8, 8);
-                material = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
-                break;
-            case 'knight':
-                size = 0.3; // уменьшено
-                geometry = new THREE.BoxGeometry(size, size, size);
-                material = new THREE.MeshBasicMaterial({ color: 0x808080 });
-                break;
-            case 'mage':
-                size = 0.25; // уменьшено
-                geometry = new THREE.OctahedronGeometry(size);
-                material = new THREE.MeshBasicMaterial({ 
-                    color: 0x9400d3,
-                    emissive: 0x4b0082
-                });
-                break;
-        }
-        
-        const projectileMesh = new THREE.Mesh(geometry, material);
-        projectileMesh.position.set(from.x, from.y, from.z);
-        scene.add(projectileMesh);
-        
-        projectile.mesh = projectileMesh;
-        game.projectiles.push(projectile);
-        
-        return projectile;
-    }
+    const deltaTime = Math.min(currentTime - lastTime, 100) / 16;
+    lastTime = currentTime;
     
     // Обновление игры
-    function updateGame(currentTime) {
-        if (!game.lastFrameTime) game.lastFrameTime = currentTime;
-        const deltaTime = Math.min((currentTime - game.lastFrameTime) / 1000, 0.1);
-        game.lastFrameTime = currentTime;
-        game.gameTime += deltaTime;
-        
-        // Обновление врагов
-        for (let i = game.enemies.length - 1; i >= 0; i--) {
-            const enemy = game.enemies[i];
-            
-            // Движение по пути
-            if (enemy.pathIndex < game.path.length - 1) {
-                const targetPoint = game.path[enemy.pathIndex + 1];
-                const dx = targetPoint.x - enemy.position.x;
-                const dz = targetPoint.z - enemy.position.z;
-                const distance = Math.sqrt(dx * dx + dz * dz);
-                
-                if (distance < 0.5) {
-                    enemy.pathIndex++;
-                } else {
-                    enemy.position.x += (dx / distance) * enemy.speed * deltaTime;
-                    enemy.position.z += (dz / distance) * enemy.speed * deltaTime;
-                    enemy.mesh.position.set(enemy.position.x, enemy.mesh.position.y, enemy.position.z);
-                    
-                    // Обновление полоски здоровья
-                    if (enemy.healthBar) {
-                        enemy.healthBar.position.set(enemy.position.x, enemy.mesh.position.y + 0.8, enemy.position.z);
-                        // Поворачиваем полоску здоровья к камере
-                        enemy.healthBar.lookAt(camera.position);
-                    }
-                    
-                    // Поворот врага в направлении движения
-                    if (distance > 0.1) {
-                        enemy.mesh.lookAt(
-                            enemy.position.x + dx / distance,
-                            enemy.mesh.position.y,
-                            enemy.position.z + dz / distance
-                        );
-                    }
-                }
-            } else {
-                // Враг достиг таверны
-                game.tavernHealth -= enemy.damage;
-                updateHealthBar();
-                showMessage(`Таверна атакована! -${enemy.damage} HP`, 'error');
-                
-                // Удаление врага
-                scene.remove(enemy.mesh);
-                if (enemy.healthBar) scene.remove(enemy.healthBar);
-                game.enemies.splice(i, 1);
-                
-                // Проверка поражения
-                if (game.tavernHealth <= 0) {
-                    gameOver();
-                }
-                continue;
-            }
-            
-            // Проверка смерти врага
-            if (enemy.health <= 0) {
-                // Награда за убийство
-                game.gold += enemy.goldReward;
-                game.enemiesDefeated++;
-                updateGold();
-                showMessage(`+${enemy.goldReward} золота`, 'gold');
-                
-                // Удаление врага
-                scene.remove(enemy.mesh);
-                if (enemy.healthBar) scene.remove(enemy.healthBar);
-                game.enemies.splice(i, 1);
-            }
-        }
-        
-        // Обновление башен
-        game.towers.forEach(tower => {
-            // Поиск цели
-            if (!tower.target || tower.target.health <= 0) {
-                tower.target = null;
-                
-                // Поиск ближайшего врага в радиусе действия
-                let closestEnemy = null;
-                let closestDistance = tower.range;
-                
-                game.enemies.forEach(enemy => {
-                    const dx = enemy.position.x - tower.x;
-                    const dz = enemy.position.z - tower.z;
-                    const distance = Math.sqrt(dx * dx + dz * dz);
-                    
-                    if (distance < closestDistance) {
-                        closestDistance = distance;
-                        closestEnemy = enemy;
-                    }
-                });
-                
-                tower.target = closestEnemy;
-            }
-            
-            // Атака цели
-            if (tower.target && currentTime - tower.lastAttack > 1000 / tower.attackSpeed) {
-                // Создание снаряда
-                const from = {
-                    x: tower.x,
-                    y: tower.mesh.position.y,
-                    z: tower.z
-                };
-                const to = {
-                    x: tower.target.position.x,
-                    y: tower.target.mesh.position.y + 0.5,
-                    z: tower.target.position.z
-                };
-                
-                createProjectile(from, to, tower.damage, tower.type);
-                tower.lastAttack = currentTime;
-                
-                // Поворот башни в сторону цели
-                tower.mesh.lookAt(to.x, from.y, to.z);
-            }
-            
-            // Легкая анимация башни
-            tower.mesh.position.y = (tower.type === 'archer' ? 1.5 : tower.type === 'knight' ? 1.75 : 1.5) + 
-                                   Math.sin(game.gameTime * 2 + tower.x) * 0.05;
-        });
-        
-        // Обновление снарядов
-        for (let i = game.projectiles.length - 1; i >= 0; i--) {
-            const projectile = game.projectiles[i];
-            projectile.progress += projectile.speed;
-            
-            if (projectile.progress >= 1) {
-                // Снаряд достиг цели
-                let enemyHit = null;
-                let closestDistance = 1; // Максимальное расстояние для попадания
-                
-                // Ищем ближайшего врага к точке попадания
-                game.enemies.forEach(enemy => {
-                    const dx = enemy.position.x - projectile.to.x;
-                    const dz = enemy.position.z - projectile.to.z;
-                    const distance = Math.sqrt(dx * dx + dz * dz);
-                    
-                    if (distance < closestDistance) {
-                        closestDistance = distance;
-                        enemyHit = enemy;
-                    }
-                });
-                
-                if (enemyHit) {
-                    enemyHit.health -= projectile.damage;
-                    updateEnemyHealthBar(enemyHit);
-                    
-                    // Магический урон по области
-                    if (projectile.type === 'mage') {
-                        game.enemies.forEach(e => {
-                            if (e !== enemyHit) {
-                                const dx = e.position.x - enemyHit.position.x;
-                                const dz = e.position.z - enemyHit.position.z;
-                                const distance = Math.sqrt(dx * dx + dz * dz);
-                                
-                                if (distance < 3) {
-                                    e.health -= projectile.damage * 0.5;
-                                    updateEnemyHealthBar(e);
-                                }
-                            }
-                        });
-                    }
-                }
-                
-                // Удаление снаряда
-                scene.remove(projectile.mesh);
-                game.projectiles.splice(i, 1);
-            } else {
-                // Движение снаряда
-                const x = projectile.from.x + (projectile.to.x - projectile.from.x) * projectile.progress;
-                const y = projectile.from.y + (projectile.to.y - projectile.from.y) * projectile.progress + 
-                         Math.sin(projectile.progress * Math.PI) * 2; // Дуга траектории
-                const z = projectile.from.z + (projectile.to.z - projectile.from.z) * projectile.progress;
-                projectile.mesh.position.set(x, y, z);
-                
-                // Вращение снаряда
-                projectile.mesh.rotation.x += 0.1;
-                projectile.mesh.rotation.y += 0.1;
-            }
-        }
-        
-        // Спавн врагов во время волны
-        if (game.waveActive && game.enemiesSpawned < game.enemiesInWave) {
-            if (currentTime - game.lastSpawn > game.spawnInterval) {
-                let enemyType;
-                const rand = Math.random();
-                
-                // Вероятность появления врагов зависит от волны
-                if (game.wave <= 3) {
-                    if (rand < 0.7) enemyType = 'peasant';
-                    else if (rand < 0.9) enemyType = 'bandit';
-                    else enemyType = 'knight-enemy';
-                } else if (game.wave <= 6) {
-                    if (rand < 0.5) enemyType = 'peasant';
-                    else if (rand < 0.8) enemyType = 'bandit';
-                    else enemyType = 'knight-enemy';
-                } else {
-                    if (rand < 0.3) enemyType = 'peasant';
-                    else if (rand < 0.6) enemyType = 'bandit';
-                    else enemyType = 'knight-enemy';
-                }
-                
-                createEnemy(enemyType);
-                game.enemiesSpawned++;
-                game.lastSpawn = currentTime;
-                
-                // Если все враги спавнены и уничтожены - заканчиваем волну
-                if (game.enemiesSpawned === game.enemiesInWave && game.enemies.length === 0) {
-                    setTimeout(() => endWave(), 1000);
-                }
-            }
-        }
-        
-        // Обновление ночного освещения
-        updateNightCycle(currentTime);
-    }
+    updateGame(deltaTime);
     
-    // Обновление цикла дня/ночи
-    function updateNightCycle(currentTime) {
-        const cycleDuration = 60000; // 60 секунд на полный цикл
-        const nightStart = 0.7; // Ночь начинается на 70% цикла
-        const dayStart = 0.3; // День начинается на 30% цикла
-        
-        const cycleProgress = (currentTime % cycleDuration) / cycleDuration;
-        
-        // Обновление индикатора
-        nightIndicator.style.width = `${cycleProgress * 100}%`;
-        
-        if (cycleProgress > nightStart && !game.isNight) {
-            game.isNight = true;
-            nightStatus.textContent = 'Ночь!';
-            showMessage('Наступает ночь! Враг усиливается!', 'warning');
-            
-            // Усиление врагов ночью
-            game.enemies.forEach(enemy => {
-                enemy.speed *= 1.2;
-                enemy.damage *= 1.3;
-            });
-            
-            // Включение лунного света
-            game.moonLight.intensity = 0.3;
-            
-            // Затемнение неба
-            scene.fog.color.setHex(0x0a0a1a);
-            
-        } else if (cycleProgress < dayStart && game.isNight) {
-            game.isNight = false;
-            nightStatus.textContent = 'День';
-            
-            // Выключение лунного света
-            game.moonLight.intensity = 0;
-            
-            // Осветление неба
-            scene.fog.color.setHex(0x1a1a2e);
-        }
-    }
+    // Обновление элементов управления камерой
+    controls.update();
     
-    // Начало волны
-    function startWave() {
-        if (game.waveActive) return;
-        
-        game.waveActive = true;
-        game.enemiesSpawned = 0;
-        game.lastSpawn = Date.now();
-        game.enemiesInWave = 5 + game.wave * 2;
-        game.enemiesDefeated = 0;
-        
-        startWaveBtn.disabled = true;
-        startWaveBtn.innerHTML = '<i class="fas fa-fighter-jet"></i> Волна в процессе';
-        
-        showMessage(`Волна ${game.wave} началась! Приближается ${game.enemiesInWave} врагов!`, 'info');
-    }
+    // Рендеринг сцены
+    renderer.render(scene, camera);
+}
+
+// Инициализация игры при загрузке страницы
+window.addEventListener('load', () => {
+    initScene();
+    updateUI();
     
-    // Завершение волны
-    function endWave() {
-        if (!game.waveActive) return;
-        
-        game.waveActive = false;
-        game.wave++;
-        updateWave();
-        
-        // Награда за волну
-        const waveReward = 50 + game.wave * 10 + game.enemiesDefeated * 5;
-        game.gold += waveReward;
-        updateGold();
-        
-        startWaveBtn.disabled = false;
-        startWaveBtn.innerHTML = `<i class="fas fa-moon"></i> Начать волну ${game.wave}`;
-        
-        showMessage(`Волна пройдена! Убито врагов: ${game.enemiesDefeated}. +${waveReward} золота`, 'success');
-        
-        // Проверка победы
-        if (game.wave > 10) {
-            victory();
-        }
-    }
-    
-    // Размещение башни
-    function placeTower(type, x, z) {
-        const cost = getTowerCost(type);
-        
-        if (game.gold < cost) {
-            showMessage('Недостаточно золота!', 'error');
-            return false;
-        }
-        
-        // Поиск ближайшей ячейки
-        let closestCell = null;
-        let closestDistance = Infinity;
-        
-        game.grid.forEach(cell => {
-            if (!cell.occupied) {
-                const dx = cell.x - x;
-                const dz = cell.z - z;
-                const distance = Math.sqrt(dx * dx + dz * dz);
-                
-                if (distance < closestDistance && distance < game.cellSize) {
-                    closestDistance = distance;
-                    closestCell = cell;
-                }
-            }
-        });
-        
-        if (!closestCell) {
-            showMessage('Нет свободных мест для башни!', 'error');
-            return false;
-        }
-        
-        // Создание башни
-        createTower(type, closestCell.x, closestCell.z);
-        closestCell.occupied = true;
-        
-        // Списание золота
-        game.gold -= cost;
-        updateGold();
-        
-        showMessage(`${getTowerName(type)} размещена за ${cost} золота!`, 'success');
-        return true;
-    }
-    
-    // Выбор башни
-    function selectTower(tower) {
-        // Сброс предыдущего выбора
-        if (game.selectedTower && game.selectedTower.rangeMesh) {
-            game.selectedTower.rangeMesh.visible = false;
-        }
-        
-        game.selectedTower = tower;
-        upgradeBtn.disabled = false;
-        sellBtn.disabled = false;
-        
-        // Показать радиус атаки выбранной башни
-        if (tower.rangeMesh) {
-            tower.rangeMesh.visible = true;
-        }
-        
-        // Обновление информации о выбранной башне
-        selectedTowerInfo.innerHTML = `
-            <h4>${getTowerName(tower.type)} (Уровень ${tower.level})</h4>
-            <p>Урон: ${tower.damage}</p>
-            <p>Дальность: ${tower.range}</p>
-            <p>Скорость атаки: ${tower.attackSpeed}/сек</p>
-            <p>Стоимость улучшения: <i class="fas fa-coins"></i> ${getUpgradeCost(tower)}</p>
-            <p>Стоимость продажи: <i class="fas fa-coins"></i> ${Math.floor(getTowerCost(tower.type) * 0.7 * tower.level)}</p>
-        `;
-    }
-    
-    // Улучшение башни
-    function upgradeTower() {
-        if (!game.selectedTower) return;
-        
-        const cost = getUpgradeCost(game.selectedTower);
-        
-        if (game.gold < cost) {
-            showMessage('Недостаточно золота для улучшения!', 'error');
-            return;
-        }
-        
-        // Улучшение характеристик
-        game.selectedTower.level++;
-        game.selectedTower.damage = Math.floor(game.selectedTower.damage * 1.5);
-        game.selectedTower.range = Math.floor(game.selectedTower.range * 1.2);
-        game.selectedTower.attackSpeed = Math.round(game.selectedTower.attackSpeed * 1.1 * 10) / 10;
-        
-        // Обновление радиуса атаки
-        if (game.selectedTower.rangeMesh) {
-            scene.remove(game.selectedTower.rangeMesh);
-            const rangeGeometry = new THREE.CircleGeometry(game.selectedTower.range, 32);
-            const rangeMaterial = new THREE.MeshBasicMaterial({ 
-                color: game.selectedTower.type === 'archer' ? 0x00ff00 : 
-                       game.selectedTower.type === 'knight' ? 0xff0000 : 0x800080,
-                transparent: true,
-                opacity: 0.2,
-                side: THREE.DoubleSide
-            });
-            const rangeMesh = new THREE.Mesh(rangeGeometry, rangeMaterial);
-            rangeMesh.position.set(game.selectedTower.x, 0.1, game.selectedTower.z);
-            rangeMesh.rotation.x = -Math.PI / 2;
-            rangeMesh.visible = true;
-            scene.add(rangeMesh);
-            game.selectedTower.rangeMesh = rangeMesh;
-        }
-        
-        // Списание золота
-        game.gold -= cost;
-        updateGold();
-        
-        // Визуальное улучшение башни (умеренное увеличение)
-        game.selectedTower.mesh.scale.multiplyScalar(1.05);
-        
-        showMessage(`${getTowerName(game.selectedTower.type)} улучшена до уровня ${game.selectedTower.level}!`, 'success');
-        selectTower(game.selectedTower); // Обновление информации
-    }
-    
-    // Продажа башни
-    function sellTower() {
-        if (!game.selectedTower) return;
-        
-        // Возврат золота (70% от стоимости улучшений)
-        const refund = Math.floor(getTowerCost(game.selectedTower.type) * 0.7 * game.selectedTower.level);
-        game.gold += refund;
-        updateGold();
-        
-        // Освобождение ячейки
-        const cell = game.grid.find(c => 
-            Math.abs(c.x - game.selectedTower.x) < 0.1 && 
-            Math.abs(c.z - game.selectedTower.z) < 0.1
-        );
-        if (cell) cell.occupied = false;
-        
-        // Удаление башни со сцены
-        scene.remove(game.selectedTower.mesh);
-        scene.remove(game.selectedTower.platform);
-        if (game.selectedTower.rangeMesh) {
-            scene.remove(game.selectedTower.rangeMesh);
-        }
-        
-        // Удаление из массива башен
-        const index = game.towers.indexOf(game.selectedTower);
-        if (index > -1) game.towers.splice(index, 1);
-        
-        // Сброс выбора
-        if (game.selectedTower.rangeMesh) {
-            game.selectedTower.rangeMesh.visible = false;
-        }
-        game.selectedTower = null;
-        upgradeBtn.disabled = true;
-        sellBtn.disabled = true;
-        selectedTowerInfo.innerHTML = `<p>Выберите башню для просмотра информации</p>`;
-        
-        showMessage(`Башня продана! +${refund} золота`, 'success');
-    }
-    
-    // Вспомогательные функции
-    function getTowerCost(type) {
-        switch(type) {
-            case 'archer': return 50;
-            case 'knight': return 100;
-            case 'mage': return 150;
-            default: return 0;
-        }
-    }
-    
-    function getTowerName(type) {
-        switch(type) {
-            case 'archer': return 'Лучник';
-            case 'knight': return 'Рыцарь';
-            case 'mage': return 'Маг';
-            default: return 'Башня';
-        }
-    }
-    
-    function getUpgradeCost(tower) {
-        return Math.floor(getTowerCost(tower.type) * tower.level * 1.5);
-    }
-    
-    function updateGold() {
-        goldElement.textContent = game.gold;
-    }
-    
-    function updateWave() {
-        waveElement.textContent = game.wave;
-    }
-    
-    function updateHealthBar() {
-        const healthPercent = (game.tavernHealth / game.maxHealth) * 100;
-        healthBar.style.width = `${healthPercent}%`;
-        healthElement.textContent = game.tavernHealth;
-        
-        // Изменение цвета в зависимости от здоровья
-        if (healthPercent > 50) {
-            healthBar.style.background = 'linear-gradient(to right, #ff0000, #00ff00)';
-        } else if (healthPercent > 20) {
-            healthBar.style.background = 'linear-gradient(to right, #ff0000, #ffff00)';
-        } else {
-            healthBar.style.background = 'linear-gradient(to right, #ff0000, #ff0000)';
-        }
-    }
-    
-    function showMessage(text, type) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message-${type}`;
-        messageDiv.innerHTML = `<p>${text}</p>`;
-        gameMessage.appendChild(messageDiv);
-        
-        // Автоматическое скрытие сообщения через 3 секунды
-        setTimeout(() => {
-            if (messageDiv.parentNode === gameMessage) {
-                gameMessage.removeChild(messageDiv);
-            }
-        }, 3000);
-        
-        // Ограничение количества сообщений
-        if (gameMessage.children.length > 3) {
-            gameMessage.removeChild(gameMessage.children[0]);
-        }
-    }
-    
-    function gameOver() {
-        showMessage('Игра окончена! Таверна разрушена!', 'error');
-        game.waveActive = false;
-        startWaveBtn.disabled = true;
-        
-        // Предложение рестарта
-        setTimeout(() => {
-            if (confirm('Таверна разрушена! Хотите начать заново?')) {
-                restartGame();
-            }
-        }, 1000);
-    }
-    
-    function victory() {
-        showMessage('Победа! Вы защитили таверну от всех волн!', 'success');
-        game.waveActive = false;
-        startWaveBtn.disabled = true;
-        
-        // Показать финальное сообщение
-        setTimeout(() => {
-            alert('Поздравляем! Вы успешно защитили таверну от всех 10 волн врагов!');
-        }, 1500);
-    }
-    
-    function restartGame() {
-        // Сброс игрового состояния
-        game.gold = 150;
-        game.wave = 1;
-        game.tavernHealth = 100;
-        game.isNight = false;
-        game.waveActive = false;
-        game.enemies = [];
-        game.towers = [];
-        game.projectiles = [];
-        game.selectedTower = null;
-        game.enemiesSpawned = 0;
-        game.enemiesDefeated = 0;
-        
-        // Обновление UI
-        updateGold();
-        updateWave();
-        updateHealthBar();
-        nightStatus.textContent = 'День';
-        nightIndicator.style.width = '0%';
-        startWaveBtn.disabled = false;
-        startWaveBtn.innerHTML = '<i class="fas fa-moon"></i> Начать волну';
-        upgradeBtn.disabled = true;
-        sellBtn.disabled = true;
-        selectedTowerInfo.innerHTML = `<p>Выберите башню для размещения</p>`;
-        gameMessage.innerHTML = '';
-        
-        // Очистка сцены
-        while(scene.children.length > 0) { 
-            scene.remove(scene.children[0]); 
-        }
-        
-        // Пересоздание игрового мира
-        initThreeJS();
-        
-        showMessage('Игра перезапущена! Удачи!', 'info');
-    }
-    
-    // Обработчики событий
-    function setupEventListeners() {
-        // Выбор типа башни
-        towerCards.forEach(card => {
-            card.addEventListener('click', function() {
-                towerCards.forEach(c => c.classList.remove('selected'));
-                this.classList.add('selected');
-                
-                game.selectedTowerType = this.dataset.tower;
-                game.placingTower = true;
-                
-                selectedTowerInfo.innerHTML = `
-                    <h4>${getTowerName(game.selectedTowerType)}</h4>
-                    <p>Кликните на игровом поле, чтобы разместить башню</p>
-                    <p>Стоимость: <i class="fas fa-coins"></i> ${getTowerCost(game.selectedTowerType)}</p>
-                    <p>У вас: <i class="fas fa-coins"></i> ${game.gold}</p>
-                `;
-                
-                showMessage(`Выбрана башня: ${getTowerName(game.selectedTowerType)}. Кликните на поле для размещения.`, 'info');
-            });
-        });
-        
-        // Начало волны
-        startWaveBtn.addEventListener('click', startWave);
-        
-        // Улучшение башни
-        upgradeBtn.addEventListener('click', upgradeTower);
-        
-        // Продажа башни
-        sellBtn.addEventListener('click', sellTower);
-        
-        // Клик по игровому полю
-        renderer.domElement.addEventListener('click', function(event) {
-            // Получение координат мыши
-            const rect = this.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-            
-            // Обновление рейкастера
-            raycaster.setFromCamera(mouse, camera);
-            
-            // Проверка на размещение башни
-            if (game.placingTower && game.selectedTowerType) {
-                // Проверка пересечения с землей
-                const intersects = raycaster.intersectObjects(scene.children.filter(obj => 
-                    obj.userData && obj.userData.type === 'ground'
-                ));
-                
-                if (intersects.length > 0) {
-                    const point = intersects[0].point;
-                    const placed = placeTower(game.selectedTowerType, point.x, point.z);
-                    
-                    if (placed) {
-                        game.placingTower = false;
-                        towerCards.forEach(c => c.classList.remove('selected'));
-                        game.selectedTowerType = null;
-                        selectedTowerInfo.innerHTML = `<p>Выберите башню для просмотра информации</p>`;
-                    }
-                }
-                return;
-            }
-            
-            // Проверка на выбор башни
-            const towerMeshes = game.towers.map(t => t.mesh);
-            const intersects = raycaster.intersectObjects(towerMeshes);
-            
-            if (intersects.length > 0) {
-                const towerMesh = intersects[0].object;
-                const tower = game.towers.find(t => t.mesh === towerMesh);
-                if (tower) {
-                    selectTower(tower);
-                }
-            } else {
-                // Сброс выбора при клике на пустое место
-                if (game.selectedTower && game.selectedTower.rangeMesh) {
-                    game.selectedTower.rangeMesh.visible = false;
-                }
-                game.selectedTower = null;
-                upgradeBtn.disabled = true;
-                sellBtn.disabled = true;
-                selectedTowerInfo.innerHTML = `<p>Выберите башню для просмотра информации</p>`;
-            }
-        });
-        
-        // Обработка изменения размера окна
-        window.addEventListener('resize', function() {
-            camera.aspect = gameCanvas.clientWidth / gameCanvas.clientHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(gameCanvas.clientWidth, gameCanvas.clientHeight);
-        });
-        
-        // Добавляем подсказки при наведении на башни
-        towerCards.forEach(card => {
-            card.addEventListener('mouseenter', function() {
-                const type = this.dataset.tower;
-                const cost = getTowerCost(type);
-                if (game.gold < cost) {
-                    this.style.opacity = '0.7';
-                }
-            });
-            
-            card.addEventListener('mouseleave', function() {
-                this.style.opacity = '1';
-            });
-        });
-    }
-    
-    // Анимация игры
-    function animate(currentTime = 0) {
-        requestAnimationFrame(animate);
-        updateGame(currentTime);
-        controls.update();
-        renderer.render(scene, camera);
-    }
-    
-    // Инициализация игры
-    function initGame() {
-        initThreeJS();
-        setupEventListeners();
-        
-        // Инициализация UI
-        updateGold();
-        updateWave();
-        updateHealthBar();
-        
-        // Приветственное сообщение
-        setTimeout(() => {
-            showMessage('Добро пожаловать в "Защиту Таверны"! Выберите башню и разместите ее на поле.', 'info');
-            showMessage('Нажмите "Начать волну", когда будете готовы к атаке.', 'info');
-        }, 1000);
-    }
-    
-    // Запуск игры
-    initGame();
+    // Показать приветственное сообщение
+    setTimeout(() => {
+        showGameMessage("Защитите таверну от злых посетителей!", 3000);
+    }, 500);
 });
