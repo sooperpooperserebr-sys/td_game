@@ -29,6 +29,7 @@ header {
     padding: 20px;
     text-align: center;
     border-bottom: 3px solid #d4af37;
+    position: relative;
 }
 
 header h1 {
@@ -43,19 +44,44 @@ header p {
     font-size: 1.2rem;
 }
 
+.day-night-indicator {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 5px 15px;
+    border-radius: 20px;
+    border: 1px solid #d4af37;
+}
+
+.day-night-indicator.day {
+    color: #ffd700;
+}
+
+.day-night-indicator.night {
+    color: #8a2be2;
+}
+
 .game-content {
     display: flex;
     padding: 20px;
     gap: 20px;
+    min-height: 800px;
 }
 
 .game-info {
     flex: 1;
-    min-width: 300px;
+    min-width: 350px;
     background: rgba(40, 25, 15, 0.9);
     border-radius: 10px;
     padding: 20px;
     border: 2px solid #654321;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 
 .game-board {
@@ -69,21 +95,21 @@ header p {
     background: rgba(30, 18, 10, 0.9);
     padding: 15px;
     border-radius: 10px;
-    margin-bottom: 20px;
     border: 1px solid #d4af37;
 }
 
 .stat {
     display: flex;
     align-items: center;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
     padding: 8px;
     background: rgba(60, 40, 20, 0.7);
     border-radius: 5px;
+    font-size: 1.1rem;
 }
 
 .stat-label {
-    width: 180px;
+    width: 160px;
     color: #d4af37;
     font-weight: bold;
 }
@@ -114,7 +140,10 @@ header p {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-bottom: 20px;
+    background: rgba(30, 18, 10, 0.9);
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #654321;
 }
 
 .btn {
@@ -128,6 +157,10 @@ header p {
     font-weight: bold;
     transition: all 0.3s;
     border: 2px solid #d4af37;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
 .btn:hover {
@@ -140,11 +173,16 @@ header p {
     transform: translateY(0);
 }
 
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .towers {
     background: rgba(30, 18, 10, 0.9);
     padding: 15px;
     border-radius: 10px;
-    margin-bottom: 20px;
     border: 1px solid #654321;
 }
 
@@ -158,6 +196,7 @@ header p {
     display: flex;
     flex-direction: column;
     gap: 15px;
+    margin-bottom: 15px;
 }
 
 .tower-card {
@@ -167,11 +206,18 @@ header p {
     padding: 10px;
     border: 2px solid #8b4513;
     transition: all 0.3s;
+    cursor: pointer;
 }
 
 .tower-card:hover {
     border-color: #d4af37;
     transform: scale(1.02);
+}
+
+.tower-card.selected {
+    border-color: #d4af37;
+    background: rgba(139, 69, 19, 0.3);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
 }
 
 .tower-icon {
@@ -182,8 +228,9 @@ header p {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: 2rem;
     border: 2px solid;
+    flex-shrink: 0;
 }
 
 .tower-icon.archer {
@@ -211,6 +258,12 @@ header p {
 .tower-info h4 {
     color: #d4af37;
     margin-bottom: 5px;
+    font-size: 1.2rem;
+}
+
+.tower-info p {
+    margin: 3px 0;
+    font-size: 0.9rem;
 }
 
 .buy-btn {
@@ -218,6 +271,18 @@ header p {
     padding: 8px 12px;
     font-size: 0.9rem;
     width: 100%;
+}
+
+.selected-tower-info {
+    background: rgba(60, 40, 20, 0.7);
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #d4af37;
+    margin-top: 10px;
+}
+
+.selected-tower-info p {
+    margin: 5px 0;
 }
 
 .enemies-info {
@@ -245,14 +310,20 @@ header p {
     padding: 8px;
     background: rgba(60, 40, 20, 0.7);
     border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .enemy-icon {
-    width: 40px;
-    height: 40px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     margin-right: 15px;
     border: 2px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
 }
 
 .enemy-icon.drunkard {
@@ -270,12 +341,54 @@ header p {
     border-color: #b22222;
 }
 
+.enemy-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.enemy-name {
+    color: #d4af37;
+    font-weight: bold;
+    margin-bottom: 3px;
+}
+
+.enemy-desc {
+    font-size: 0.85rem;
+    color: #ccc;
+}
+
+.board-header {
+    background: rgba(40, 25, 15, 0.9);
+    border-radius: 10px 10px 0 0;
+    padding: 15px;
+    border: 2px solid #654321;
+    border-bottom: none;
+}
+
+.board-header h3 {
+    color: #d4af37;
+    margin-bottom: 10px;
+}
+
+.game-hints {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 0.9rem;
+    color: #ccc;
+}
+
+.game-hints i {
+    color: #d4af37;
+    margin-right: 8px;
+}
+
 .board-container {
     background: rgba(40, 25, 15, 0.9);
-    border-radius: 10px;
+    border-radius: 0 0 10px 10px;
     padding: 20px;
     border: 2px solid #654321;
-    height: 500px;
+    height: 600px;
     position: relative;
     overflow: hidden;
 }
@@ -283,10 +396,14 @@ header p {
 #gameGrid {
     display: grid;
     grid-template-columns: repeat(12, 1fr);
-    grid-template-rows: repeat(8, 1fr);
-    gap: 5px;
+    grid-template-rows: repeat(10, 1fr);
+    gap: 2px;
     height: 100%;
-    position: relative;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 20px;
 }
 
 .grid-cell {
@@ -295,6 +412,7 @@ header p {
     border-radius: 3px;
     position: relative;
     transition: all 0.3s;
+    cursor: pointer;
 }
 
 .grid-cell:hover {
@@ -302,20 +420,24 @@ header p {
     border-color: #d4af37;
 }
 
-.grid-cell.tower {
-    background: rgba(0, 100, 0, 0.3);
-    border-color: green;
-}
-
 .grid-cell.path {
     background: rgba(160, 120, 80, 0.7);
     border-color: #a07850;
 }
 
+.grid-cell.path:hover {
+    background: rgba(180, 140, 100, 0.8);
+}
+
+.grid-cell.tower {
+    background: rgba(0, 100, 0, 0.3);
+    border-color: green;
+}
+
 #tavern {
     position: absolute;
-    bottom: 20px;
-    right: 20px;
+    bottom: 40px;
+    right: 40px;
     width: 120px;
     height: 120px;
     background: linear-gradient(to bottom, #8b4513, #5d2906);
@@ -329,6 +451,7 @@ header p {
     font-size: 1.2rem;
     font-weight: bold;
     z-index: 10;
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
 }
 
 #tavern i {
@@ -339,17 +462,19 @@ header p {
 
 .enemy {
     position: absolute;
-    width: 30px;
-    height: 30px;
+    width: 35px;
+    height: 35px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 1.2rem;
     color: white;
     font-weight: bold;
-    transition: all 0.1s linear;
     z-index: 5;
+    transition: transform 0.1s linear;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
 }
 
 .enemy.drunkard {
@@ -367,64 +492,98 @@ header p {
     border: 2px solid #dc143c;
 }
 
+.enemy.health-bar {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.enemy.health-fill {
+    height: 100%;
+    background: linear-gradient(to right, #ff0000, #00ff00);
+    transition: width 0.3s;
+}
+
 .tower-placed {
     position: absolute;
-    width: 40px;
-    height: 40px;
+    width: 45px;
+    height: 45px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: 1.8rem;
     z-index: 5;
     border: 2px solid;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.tower-placed:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+    z-index: 20;
 }
 
 .tower-placed.archer {
-    background: rgba(0, 100, 0, 0.8);
-    border-color: green;
-    color: lightgreen;
+    background: radial-gradient(circle, #006400, #003300);
+    border-color: #32cd32;
+    color: #90ee90;
 }
 
 .tower-placed.knight {
-    background: rgba(100, 0, 0, 0.8);
-    border-color: darkred;
+    background: radial-gradient(circle, #8b0000, #4b0000);
+    border-color: #ff6347;
     color: #ff9999;
 }
 
 .tower-placed.wizard {
-    background: rgba(75, 0, 130, 0.8);
-    border-color: purple;
-    color: violet;
+    background: radial-gradient(circle, #4b0082, #2e0042);
+    border-color: #9370db;
+    color: #dda0dd;
+}
+
+.tower-placed.selected {
+    border-width: 3px;
+    border-color: #ffd700;
+    box-shadow: 0 0 15px #ffd700;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.1); }
+    100% { transform: translate(-50%, -50%) scale(1); }
 }
 
 .bullet {
     position: absolute;
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     z-index: 4;
+    transform: translate(-50%, -50%);
 }
 
 .bullet.archer {
-    background: green;
+    background: #32cd32;
+    box-shadow: 0 0 5px #32cd32;
 }
 
 .bullet.knight {
-    background: red;
+    background: #ff4500;
+    box-shadow: 0 0 5px #ff4500;
 }
 
 .bullet.wizard {
-    background: purple;
-}
-
-#path {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
+    background: #9370db;
+    box-shadow: 0 0 5px #9370db;
 }
 
 .game-log {
@@ -443,17 +602,34 @@ header p {
     background: rgba(20, 12, 8, 0.9);
     border-radius: 5px;
     padding: 10px;
-    height: 150px;
+    height: 200px;
     overflow-y: auto;
     border: 1px solid #8b4513;
 }
 
 .log-entry {
-    padding: 5px 10px;
-    margin-bottom: 5px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
     background: rgba(60, 40, 20, 0.7);
-    border-radius: 3px;
-    border-left: 3px solid #d4af37;
+    border-radius: 5px;
+    border-left: 4px solid #d4af37;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+.log-entry.error {
+    border-left-color: #ff4444;
+    color: #ff9999;
+}
+
+.log-entry.success {
+    border-left-color: #44ff44;
+    color: #99ff99;
+}
+
+.log-entry.warning {
+    border-left-color: #ffaa00;
+    color: #ffcc88;
 }
 
 footer {
@@ -462,14 +638,40 @@ footer {
     text-align: center;
     border-top: 3px solid #d4af37;
     color: #f0e6d2;
+    font-size: 1.1rem;
 }
 
-@media (max-width: 1100px) {
+#nextWaveInfo {
+    color: #ffd700;
+    font-weight: bold;
+}
+
+@media (max-width: 1200px) {
     .game-content {
         flex-direction: column;
     }
     
     .game-info {
         min-width: 100%;
+    }
+    
+    .board-container {
+        height: 500px;
+    }
+}
+
+@media (max-width: 768px) {
+    .game-content {
+        padding: 10px;
+    }
+    
+    .tower-list {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .tower-card {
+        flex: 1;
+        min-width: 200px;
     }
 }
