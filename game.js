@@ -13,20 +13,24 @@ const gameState = {
     towers: [],
     enemies: [],
     bullets: [],
-    towerStats: {
-        archer: { damage: 10, range: 4, speed: 2.0, cost: 50, level: 1 },
-        knight: { damage: 25, range: 2, speed: 1.2, cost: 100, level: 1 },
-        wizard: { damage: 15, range: 5, speed: 1.5, cost: 150, level: 1 }
-    },
-    enemyStats: {
-        drunkard: { health: 60, damage: 5, speed: 0.8, gold: 20 },
-        thief: { health: 30, damage: 10, speed: 1.5, gold: 15 },
-        barbarian: { health: 100, damage: 15, speed: 0.6, gold: 30 }
-    },
+    pathCells: [],
     waveTimer: 30,
     waveInterval: null,
-    gameLoopInterval: null,
-    lastUpdateTime: Date.now()
+    gameLoopInterval: null
+};
+
+// Настройки башен
+const towerConfig = {
+    archer: { name: 'Лучник', cost: 50, damage: 10, range: 120, speed: 1.0, color: '#32cd32', icon: '🏹' },
+    knight: { name: 'Рыцарь', cost: 100, damage: 25, range: 80, speed: 0.7, color: '#ff6347', icon: '⚔️' },
+    wizard: { name: 'Маг', cost: 150, damage: 15, range: 150, speed: 0.9, color: '#9370db', icon: '🔮' }
+};
+
+// Настройки врагов
+const enemyConfig = {
+    drunkard: { name: 'Пьяница', health: 60, damage: 5, speed: 0.5, gold: 20, color: '#8b4513', icon: '🍺' },
+    thief: { name: 'Вор', health: 30, damage: 10, speed: 1.0, gold: 15, color: '#696969', icon: '🗡️' },
+    barbarian: { name: 'Варвар', health: 100, damage: 15, speed: 0.3, gold: 30, color: '#b22222', icon: '🪓' }
 };
 
 // DOM элементы
@@ -48,25 +52,25 @@ const elements = {
     towerStats: document.getElementById('towerStats')
 };
 
-// Путь для врагов (координаты в процентах)
-const pathPoints = [
-    { x: 4, y: 4 },    // Начало пути
-    { x: 4, y: 20 },
-    { x: 12, y: 20 },
-    { x: 12, y: 36 },
-    { x: 28, y: 36 },
-    { x: 28, y: 52 },
-    { x: 44, y: 52 },
-    { x: 44, y: 68 },
-    { x: 60, y: 68 },
-    { x: 60, y: 84 },
-    { x: 76, y: 84 },
-    { x: 76, y: 92 },  // Таверна
+// Путь для врагов (координаты в пикселях относительно gameGrid)
+const path = [
+    { x: 40, y: 40 },    // Начало пути (левая верхняя часть)
+    { x: 40, y: 150 },
+    { x: 150, y: 150 },
+    { x: 150, y: 260 },
+    { x: 260, y: 260 },
+    { x: 260, y: 370 },
+    { x: 370, y: 370 },
+    { x: 370, y: 480 },
+    { x: 480, y: 480 },
+    { x: 480, y: 520 },
+    { x: 520, y: 520 }   // Таверна (правая нижняя часть)
 ];
 
 // Инициализация игры
 function initGame() {
     createGrid();
+    createPathCells();
     setupEventListeners();
     updateUI();
     startWaveTimer();
@@ -86,65 +90,40 @@ function createGrid() {
             cell.dataset.row = row;
             cell.dataset.col = col;
             
-            // Проверяем, находится ли клетка на пути
-            const cellX = (col / 12) * 100;
-            const cellY = (row / 10) * 100;
-            const isOnPath = isPointOnPath(cellX, cellY);
+            // Сохраняем позицию клетки
+            const rect = elements.gameGrid.getBoundingClientRect();
+            const cellSize = rect.width / 12;
+            cell.dataset.x = col * cellSize + cellSize / 2;
+            cell.dataset.y = row * cellSize + cellSize / 2;
             
-            if (isOnPath) {
-                cell.classList.add('path');
-            }
-            
-            cell.addEventListener('click', () => onCellClick(row, col));
+            cell.addEventListener('click', () => onCellClick(row, col, cell));
             elements.gameGrid.appendChild(cell);
         }
     }
 }
 
-// Проверка, находится ли точка на пути
-function isPointOnPath(x, y) {
-    for (let i = 0; i < pathPoints.length - 1; i++) {
-        const p1 = pathPoints[i];
-        const p2 = pathPoints[i + 1];
-        
-        // Проверяем, находится ли точка около линии между p1 и p2
-        const distance = pointToLineDistance(x, y, p1.x, p1.y, p2.x, p2.y);
-        if (distance < 8) { // 8% - ширина пути
-            return true;
-        }
-    }
-    return false;
-}
-
-// Расстояние от точки до линии
-function pointToLineDistance(px, py, x1, y1, x2, y2) {
-    const A = px - x1;
-    const B = py - y1;
-    const C = x2 - x1;
-    const D = y2 - y1;
-
-    const dot = A * C + B * D;
-    const lenSq = C * C + D * D;
-    let param = -1;
+// Создание клеток пути
+function createPathCells() {
+    gameState.pathCells = [];
     
-    if (lenSq !== 0) param = dot / lenSq;
-
-    let xx, yy;
-
-    if (param < 0) {
-        xx = x1;
-        yy = y1;
-    } else if (param > 1) {
-        xx = x2;
-        yy = y2;
-    } else {
-        xx = x1 + param * C;
-        yy = y1 + param * D;
-    }
-
-    const dx = px - xx;
-    const dy = py - yy;
-    return Math.sqrt(dx * dx + dy * dy);
+    // Проходим по пути и отмечаем ближайшие клетки как путь
+    path.forEach(point => {
+        const cells = document.querySelectorAll('.grid-cell');
+        cells.forEach(cell => {
+            const x = parseFloat(cell.dataset.x);
+            const y = parseFloat(cell.dataset.y);
+            const distance = Math.sqrt(Math.pow(x - point.x, 2) + Math.pow(y - point.y, 2));
+            
+            if (distance < 35) { // 35px - радиус пути
+                cell.classList.add('path');
+                gameState.pathCells.push({
+                    x: x,
+                    y: y,
+                    element: cell
+                });
+            }
+        });
+    });
 }
 
 // Настройка обработчиков событий
@@ -152,6 +131,7 @@ function setupEventListeners() {
     // Кнопки выбора башен
     document.querySelectorAll('.buy-btn').forEach(button => {
         button.addEventListener('click', (e) => {
+            e.stopPropagation();
             const type = e.target.closest('.tower-card').dataset.type;
             selectTowerType(type);
         });
@@ -172,9 +152,6 @@ function setupEventListeners() {
     elements.upgradeTower.addEventListener('click', upgradeSelectedTower);
     elements.sellTower.addEventListener('click', sellSelectedTower);
     elements.restart.addEventListener('click', restartGame);
-
-    // Обновление статистики башен в интерфейсе
-    updateTowerStatsDisplay();
 }
 
 // Выбор типа башни
@@ -188,31 +165,26 @@ function selectTowerType(type) {
     });
     document.querySelector(`.tower-card[data-type="${type}"]`).classList.add('selected');
     
-    const towerNames = {
-        archer: 'Лучник',
-        knight: 'Рыцарь',
-        wizard: 'Маг'
-    };
+    elements.selectedTowerText.innerHTML = `Выбрана башня: <strong>${towerConfig[type].name}</strong>`;
+    elements.towerStats.textContent = `Уровень: 1 | Урон: ${towerConfig[type].damage} | Цена улучшения: 75 золота`;
     
-    elements.selectedTowerText.innerHTML = `Выбрана башня: <strong>${towerNames[type]}</strong>`;
-    elements.towerStats.textContent = `Уровень: ${gameState.towerStats[type].level} | Урон: ${gameState.towerStats[type].damage} | Цена улучшения: 75 золота`;
-    
-    addLogEntry(`Выбрана башня: ${towerNames[type]}. Кликните на свободную клетку для установки.`);
+    addLogEntry(`Выбрана башня: ${towerConfig[type].name}. Кликните на свободную клетку для установки.`);
 }
 
 // Обработка клика по клетке
-function onCellClick(row, col) {
-    const cellX = (col / 12) * 100;
-    const cellY = (row / 10) * 100;
-    
-    if (isPointOnPath(cellX, cellY)) {
+function onCellClick(row, col, cell) {
+    // Проверяем, находится ли клетка на пути
+    if (cell.classList.contains('path')) {
         addLogEntry("Нельзя ставить башни на пути врагов!", "error");
         return;
     }
     
     // Проверяем, есть ли уже башня на этой клетке
+    const cellX = parseFloat(cell.dataset.x);
+    const cellY = parseFloat(cell.dataset.y);
+    
     const existingTower = gameState.towers.find(t => 
-        Math.abs(t.x - cellX) < 5 && Math.abs(t.y - cellY) < 5
+        Math.abs(t.x - cellX) < 20 && Math.abs(t.y - cellY) < 20
     );
     
     if (existingTower) {
@@ -230,7 +202,7 @@ function onCellClick(row, col) {
 // Размещение новой башни
 function placeTower(row, col, x, y) {
     const towerType = gameState.selectedTowerType;
-    const cost = gameState.towerStats[towerType].cost;
+    const cost = towerConfig[towerType].cost;
     
     if (gameState.gold < cost) {
         addLogEntry(`Недостаточно золота! Нужно ${cost} золота.`, "error");
@@ -240,15 +212,15 @@ function placeTower(row, col, x, y) {
     gameState.gold -= cost;
     
     const tower = {
-        id: Date.now() + Math.random(),
+        id: Date.now(),
         type: towerType,
         x: x,
         y: y,
         row: row,
         col: col,
-        damage: gameState.towerStats[towerType].damage,
-        range: gameState.towerStats[towerType].range,
-        speed: gameState.towerStats[towerType].speed,
+        damage: towerConfig[towerType].damage,
+        range: towerConfig[towerType].range,
+        speed: towerConfig[towerType].speed,
         level: 1,
         lastShot: 0,
         target: null
@@ -260,13 +232,13 @@ function placeTower(row, col, x, y) {
     // Создаем визуальный элемент башни
     createTowerElement(tower);
     
-    const towerNames = {
-        archer: 'Лучник',
-        knight: 'Рыцарь',
-        wizard: 'Маг'
-    };
+    // Помечаем клетку как занятую башней
+    const cell = document.querySelector(`.grid-cell[data-row="${row}"][data-col="${col}"]`);
+    if (cell) {
+        cell.classList.add('tower');
+    }
     
-    addLogEntry(`Построен ${towerNames[towerType]} за ${cost} золота.`);
+    addLogEntry(`Построен ${towerConfig[towerType].name} за ${cost} золота.`, "success");
 }
 
 // Создание визуального элемента башни
@@ -274,9 +246,9 @@ function createTowerElement(tower) {
     const towerElement = document.createElement('div');
     towerElement.className = `tower-placed ${tower.type}`;
     towerElement.dataset.id = tower.id;
-    towerElement.innerHTML = getTowerIcon(tower.type);
-    towerElement.style.left = `${tower.x}%`;
-    towerElement.style.top = `${tower.y}%`;
+    towerElement.innerHTML = towerConfig[tower.type].icon;
+    towerElement.style.left = `${tower.x}px`;
+    towerElement.style.top = `${tower.y}px`;
     
     towerElement.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -284,6 +256,7 @@ function createTowerElement(tower) {
     });
     
     elements.gameGrid.appendChild(towerElement);
+    return towerElement;
 }
 
 // Выбор существующей башни
@@ -307,14 +280,8 @@ function selectExistingTower(tower) {
         card.classList.remove('selected');
     });
     
-    const towerNames = {
-        archer: 'Лучник',
-        knight: 'Рыцарь',
-        wizard: 'Маг'
-    };
-    
-    elements.selectedTowerText.innerHTML = `Выбрана башня: <strong>${towerNames[tower.type]} (уровень ${tower.level})</strong>`;
-    elements.towerStats.textContent = `Урон: ${tower.damage} | Дальность: ${tower.range} | Стоимость продажи: ${Math.floor(tower.level * gameState.towerStats[tower.type].cost * 0.7)} золота`;
+    elements.selectedTowerText.innerHTML = `Выбрана башня: <strong>${towerConfig[tower.type].name} (уровень ${tower.level})</strong>`;
+    elements.towerStats.textContent = `Урон: ${tower.damage} | Дальность: ${tower.range} | Стоимость продажи: ${Math.floor(tower.level * towerConfig[tower.type].cost * 0.7)} золота`;
 }
 
 // Улучшение выбранной башни
@@ -334,8 +301,8 @@ function upgradeSelectedTower() {
     const tower = gameState.selectedTower;
     tower.level++;
     tower.damage += 5;
-    tower.range += 0.5;
-    tower.speed += 0.2;
+    tower.range += 20;
+    tower.speed += 0.1;
     
     gameState.gold -= upgradeCost;
     updateUI();
@@ -343,10 +310,10 @@ function upgradeSelectedTower() {
     // Обновляем отображение башни
     const towerElement = document.querySelector(`.tower-placed[data-id="${tower.id}"]`);
     if (towerElement) {
-        towerElement.style.fontSize = `${1.8 + tower.level * 0.2}rem`;
+        towerElement.style.fontSize = `${1.5 + tower.level * 0.1}rem`;
     }
     
-    elements.towerStats.textContent = `Урон: ${tower.damage} | Дальность: ${tower.range} | Стоимость продажи: ${Math.floor(tower.level * gameState.towerStats[tower.type].cost * 0.7)} золота`;
+    elements.towerStats.textContent = `Урон: ${tower.damage} | Дальность: ${tower.range} | Стоимость продажи: ${Math.floor(tower.level * towerConfig[tower.type].cost * 0.7)} золота`;
     
     addLogEntry(`Башня улучшена до уровня ${tower.level}! Урон увеличен.`, "success");
 }
@@ -359,7 +326,7 @@ function sellSelectedTower() {
     }
     
     const tower = gameState.selectedTower;
-    const sellPrice = Math.floor(tower.level * gameState.towerStats[tower.type].cost * 0.7);
+    const sellPrice = Math.floor(tower.level * towerConfig[tower.type].cost * 0.7);
     
     // Удаляем башню из массива
     const index = gameState.towers.findIndex(t => t.id === tower.id);
@@ -371,6 +338,12 @@ function sellSelectedTower() {
     const towerElement = document.querySelector(`.tower-placed[data-id="${tower.id}"]`);
     if (towerElement) {
         towerElement.remove();
+    }
+    
+    // Убираем отметку с клетки
+    const cell = document.querySelector(`.grid-cell[data-row="${tower.row}"][data-col="${tower.col}"]`);
+    if (cell) {
+        cell.classList.remove('tower');
     }
     
     // Добавляем золото
@@ -414,13 +387,12 @@ function startWave() {
                 createEnemy();
             }
         }, delay);
-        delay += 1500 - Math.min(gameState.wave * 100, 1000); // Увеличиваем частоту с волнами
+        delay += 1500 - Math.min(gameState.wave * 100, 1000);
     }
     
     // Запускаем игровой цикл
     if (!gameState.gameLoopInterval) {
-        gameState.lastUpdateTime = Date.now();
-        gameState.gameLoopInterval = setInterval(gameLoop, 16); // ~60 FPS
+        gameState.gameLoopInterval = setInterval(gameLoop, 1000 / 60); // 60 FPS
     }
     
     elements.startWave.disabled = true;
@@ -446,19 +418,20 @@ function createEnemy() {
         else enemyType = 'barbarian';
     }
     
-    const stats = gameState.enemyStats[enemyType];
+    const stats = enemyConfig[enemyType];
     
     const enemy = {
-        id: Date.now() + Math.random(),
+        id: Date.now(),
         type: enemyType,
         health: stats.health,
         maxHealth: stats.health,
         damage: stats.damage,
         speed: stats.speed,
         gold: stats.gold,
-        position: 0, // Позиция на пути (от 0 до 1)
-        x: pathPoints[0].x,
-        y: pathPoints[0].y,
+        position: 0, // Индекс текущей точки пути
+        x: path[0].x,
+        y: path[0].y,
+        targetIndex: 1,
         reachedTavern: false
     };
     
@@ -473,20 +446,21 @@ function createEnemyElement(enemy) {
     const enemyElement = document.createElement('div');
     enemyElement.className = `enemy ${enemy.type}`;
     enemyElement.dataset.id = enemy.id;
-    enemyElement.innerHTML = getEnemyIcon(enemy.type);
-    enemyElement.style.left = `${enemy.x}%`;
-    enemyElement.style.top = `${enemy.y}%`;
+    enemyElement.innerHTML = enemyConfig[enemy.type].icon;
+    enemyElement.style.left = `${enemy.x}px`;
+    enemyElement.style.top = `${enemy.y}px`;
     
     // Добавляем полоску здоровья
     const healthBar = document.createElement('div');
-    healthBar.className = 'enemy health-bar';
+    healthBar.className = 'health-bar';
     const healthFill = document.createElement('div');
-    healthFill.className = 'enemy health-fill';
+    healthFill.className = 'health-fill';
     healthFill.style.width = '100%';
     healthBar.appendChild(healthFill);
     enemyElement.appendChild(healthBar);
     
     elements.gameGrid.appendChild(enemyElement);
+    return enemyElement;
 }
 
 // Игровой цикл
@@ -500,17 +474,15 @@ function gameLoop() {
     }
     
     const currentTime = Date.now();
-    const deltaTime = (currentTime - gameState.lastUpdateTime) / 1000;
-    gameState.lastUpdateTime = currentTime;
     
     // Обновляем врагов
-    updateEnemies(deltaTime);
+    updateEnemies(currentTime);
     
     // Обновляем башни (атаки)
-    updateTowers(deltaTime);
+    updateTowers(currentTime);
     
     // Обновляем пули
-    updateBullets(deltaTime);
+    updateBullets(currentTime);
     
     // Проверяем конец волны
     if (gameState.enemiesAlive === 0 && gameState.enemies.length === 0) {
@@ -519,7 +491,7 @@ function gameLoop() {
 }
 
 // Обновление врагов
-function updateEnemies(deltaTime) {
+function updateEnemies(currentTime) {
     for (let i = gameState.enemies.length - 1; i >= 0; i--) {
         const enemy = gameState.enemies[i];
         
@@ -534,7 +506,7 @@ function updateEnemies(deltaTime) {
             gameState.enemies.splice(i, 1);
             gameState.enemiesAlive--;
             
-            addLogEntry(`${getEnemyName(enemy.type)} атаковал таверну! -${enemy.damage} здоровья.`, "error");
+            addLogEntry(`${enemyConfig[enemy.type].name} атаковал таверну! -${enemy.damage} здоровья.`, "error");
             
             // Проверяем проигрыш
             if (gameState.health <= 0) {
@@ -546,52 +518,67 @@ function updateEnemies(deltaTime) {
         }
         
         // Двигаем врага по пути
-        enemy.position += enemy.speed * deltaTime * 0.05;
+        const targetPoint = path[enemy.targetIndex];
+        const dx = targetPoint.x - enemy.x;
+        const dy = targetPoint.y - enemy.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
         
-        if (enemy.position >= 1) {
-            enemy.reachedTavern = true;
-            continue;
+        if (distance < 5) {
+            // Достигли точки пути
+            enemy.position = enemy.targetIndex;
+            enemy.targetIndex++;
+            
+            if (enemy.targetIndex >= path.length) {
+                enemy.reachedTavern = true;
+                continue;
+            }
+        } else {
+            // Двигаемся к точке
+            const speed = enemy.speed * 2;
+            enemy.x += (dx / distance) * speed;
+            enemy.y += (dy / distance) * speed;
         }
-        
-        // Вычисляем позицию на пути
-        const segmentIndex = Math.floor(enemy.position * (pathPoints.length - 1));
-        const segmentProgress = (enemy.position * (pathPoints.length - 1)) - segmentIndex;
-        
-        const p1 = pathPoints[segmentIndex];
-        const p2 = pathPoints[segmentIndex + 1];
-        
-        enemy.x = p1.x + (p2.x - p1.x) * segmentProgress;
-        enemy.y = p1.y + (p2.y - p1.y) * segmentProgress;
         
         // Обновляем визуальную позицию
         const enemyElement = document.querySelector(`.enemy[data-id="${enemy.id}"]`);
         if (enemyElement) {
-            enemyElement.style.left = `${enemy.x}%`;
-            enemyElement.style.top = `${enemy.y}%`;
+            enemyElement.style.left = `${enemy.x}px`;
+            enemyElement.style.top = `${enemy.y}px`;
             
             // Обновляем полоску здоровья
             const healthFill = enemyElement.querySelector('.health-fill');
             if (healthFill) {
-                healthFill.style.width = `${(enemy.health / enemy.maxHealth) * 100}%`;
+                const healthPercent = (enemy.health / enemy.maxHealth) * 100;
+                healthFill.style.width = `${healthPercent}%`;
+                
+                // Меняем цвет в зависимости от здоровья
+                if (healthPercent > 50) {
+                    healthFill.style.background = 'linear-gradient(to right, #00ff00, #ffff00)';
+                } else if (healthPercent > 25) {
+                    healthFill.style.background = 'linear-gradient(to right, #ffff00, #ff9900)';
+                } else {
+                    healthFill.style.background = 'linear-gradient(to right, #ff9900, #ff0000)';
+                }
             }
         }
     }
 }
 
 // Обновление башен
-function updateTowers(deltaTime) {
+function updateTowers(currentTime) {
     gameState.towers.forEach(tower => {
-        tower.lastShot += deltaTime;
+        // Проверяем, можно ли стрелять
+        if (currentTime - tower.lastShot < 1000 / tower.speed) {
+            return;
+        }
         
-        if (tower.lastShot >= 1 / tower.speed) {
-            // Ищем цель для атаки
-            const target = findTargetForTower(tower);
-            
-            if (target) {
-                // Стреляем по цели
-                shootAtTarget(tower, target);
-                tower.lastShot = 0;
-            }
+        // Ищем цель для атаки
+        const target = findTargetForTower(tower);
+        
+        if (target) {
+            // Стреляем по цели
+            shootAtTarget(tower, target, currentTime);
+            tower.lastShot = currentTime;
         }
     });
 }
@@ -608,7 +595,7 @@ function findTargetForTower(tower) {
         const dy = enemy.y - tower.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        if (distance <= tower.range * 8 && distance < closestDistance) { // 8% на единицу дальности
+        if (distance <= tower.range && distance < closestDistance) {
             closestDistance = distance;
             closestEnemy = enemy;
         }
@@ -618,16 +605,16 @@ function findTargetForTower(tower) {
 }
 
 // Выстрел по цели
-function shootAtTarget(tower, target) {
+function shootAtTarget(tower, target, currentTime) {
     const bullet = {
-        id: Date.now() + Math.random(),
+        id: currentTime,
         towerId: tower.id,
         targetId: target.id,
         x: tower.x,
         y: tower.y,
         damage: tower.damage,
         type: tower.type,
-        speed: 10
+        speed: 8 // пикселей за кадр
     };
     
     gameState.bullets.push(bullet);
@@ -641,14 +628,14 @@ function createBulletElement(bullet) {
     const bulletElement = document.createElement('div');
     bulletElement.className = `bullet ${bullet.type}`;
     bulletElement.dataset.id = bullet.id;
-    bulletElement.style.left = `${bullet.x}%`;
-    bulletElement.style.top = `${bullet.y}%`;
+    bulletElement.style.left = `${bullet.x}px`;
+    bulletElement.style.top = `${bullet.y}px`;
     
     elements.gameGrid.appendChild(bulletElement);
 }
 
 // Обновление пуль
-function updateBullets(deltaTime) {
+function updateBullets() {
     for (let i = gameState.bullets.length - 1; i >= 0; i--) {
         const bullet = gameState.bullets[i];
         
@@ -668,9 +655,12 @@ function updateBullets(deltaTime) {
         const dy = target.y - bullet.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        if (distance < bullet.speed * deltaTime * 50) {
+        if (distance < bullet.speed) {
             // Попадание
             target.health -= bullet.damage;
+            
+            // Создаем эффект попадания
+            createHitEffect(bullet.x, bullet.y);
             
             // Удаляем пулю
             const bulletElement = document.querySelector(`.bullet[data-id="${bullet.id}"]`);
@@ -681,19 +671,16 @@ function updateBullets(deltaTime) {
             if (target.health <= 0) {
                 killEnemy(target);
             }
-            
-            // Эффект попадания
-            createHitEffect(bullet.x, bullet.y);
         } else {
             // Продолжаем движение
-            bullet.x += (dx / distance) * bullet.speed * deltaTime * 50;
-            bullet.y += (dy / distance) * bullet.speed * deltaTime * 50;
+            bullet.x += (dx / distance) * bullet.speed;
+            bullet.y += (dy / distance) * bullet.speed;
             
             // Обновляем позицию
             const bulletElement = document.querySelector(`.bullet[data-id="${bullet.id}"]`);
             if (bulletElement) {
-                bulletElement.style.left = `${bullet.x}%`;
-                bulletElement.style.top = `${bullet.y}%`;
+                bulletElement.style.left = `${bullet.x}px`;
+                bulletElement.style.top = `${bullet.y}px`;
             }
         }
     }
@@ -703,20 +690,12 @@ function updateBullets(deltaTime) {
 function createHitEffect(x, y) {
     const effect = document.createElement('div');
     effect.className = 'hit-effect';
-    effect.style.left = `${x}%`;
-    effect.style.top = `${y}%`;
-    effect.style.position = 'absolute';
-    effect.style.width = '20px';
-    effect.style.height = '20px';
-    effect.style.borderRadius = '50%';
-    effect.style.backgroundColor = '#ff4444';
-    effect.style.opacity = '0.7';
-    effect.style.transform = 'translate(-50%, -50%)';
-    effect.style.zIndex = '6';
+    effect.style.left = `${x}px`;
+    effect.style.top = `${y}px`;
     
     elements.gameGrid.appendChild(effect);
     
-    // Анимация исчезновения
+    // Удаляем эффект через 300 мс
     setTimeout(() => {
         if (effect.parentNode) {
             effect.parentNode.removeChild(effect);
@@ -729,7 +708,7 @@ function killEnemy(enemy) {
     // Начисляем золото
     gameState.gold += enemy.gold;
     
-    // Удаляем врага
+    // Удаляем врага из массива
     const index = gameState.enemies.findIndex(e => e.id === enemy.id);
     if (index !== -1) {
         gameState.enemies.splice(index, 1);
@@ -744,7 +723,7 @@ function killEnemy(enemy) {
     }
     
     updateUI();
-    addLogEntry(`${getEnemyName(enemy.type)} уничтожен! +${enemy.gold} золота.`, "success");
+    addLogEntry(`${enemyConfig[enemy.type].name} уничтожен! +${enemy.gold} золота.`, "success");
 }
 
 // Завершение волны
@@ -802,20 +781,21 @@ function victory() {
     gameState.gameRunning = false;
     gameState.gameOver = true;
     
-    if (gameState.gameLoopInterval) {
-        clearInterval(gameState.gameLoopInterval);
-        gameState.gameLoopInterval = null;
-    }
+    clearInterval(gameState.gameLoopInterval);
+    clearInterval(gameState.waveInterval);
     
-    if (gameState.waveInterval) {
-        clearInterval(gameState.waveInterval);
-    }
+    gameState.gameLoopInterval = null;
+    gameState.waveInterval = null;
     
     addLogEntry("ПОБЕДА! Вы успешно защитили таверну от всех врагов!", "success");
     addLogEntry("Игра завершена. Нажмите 'Новая игра' для повторной игры.", "success");
     
     elements.startWave.disabled = true;
-    alert("ПОБЕДА! Вы защитили таверну от всех 10 волн врагов!");
+    
+    // Показываем сообщение о победе
+    setTimeout(() => {
+        alert("ПОБЕДА! Вы защитили таверну от всех 10 волн врагов!");
+    }, 500);
 }
 
 // Конец игры (проигрыш)
@@ -823,59 +803,52 @@ function gameOver() {
     gameState.gameRunning = false;
     gameState.gameOver = true;
     
-    if (gameState.gameLoopInterval) {
-        clearInterval(gameState.gameLoopInterval);
-        gameState.gameLoopInterval = null;
-    }
+    clearInterval(gameState.gameLoopInterval);
+    clearInterval(gameState.waveInterval);
     
-    if (gameState.waveInterval) {
-        clearInterval(gameState.waveInterval);
-    }
+    gameState.gameLoopInterval = null;
+    gameState.waveInterval = null;
     
     addLogEntry("ПОРАЖЕНИЕ! Таверна разрушена!", "error");
     addLogEntry("Игра окончена. Нажмите 'Новая игра' для повторной игры.", "error");
     
     elements.startWave.disabled = true;
-    alert("Игра окончена! Ваша таверна была разрушена врагами!");
+    
+    // Показываем сообщение о проигрыше
+    setTimeout(() => {
+        alert("Игра окончена! Ваша таверна была разрушена врагами!");
+    }, 500);
 }
 
 // Перезапуск игры
 function restartGame() {
     // Очищаем все интервалы
-    if (gameState.gameLoopInterval) {
-        clearInterval(gameState.gameLoopInterval);
-        gameState.gameLoopInterval = null;
-    }
-    
-    if (gameState.waveInterval) {
-        clearInterval(gameState.waveInterval);
-    }
+    clearInterval(gameState.gameLoopInterval);
+    clearInterval(gameState.waveInterval);
     
     // Сбрасываем состояние игры
-    Object.assign(gameState, {
-        gold: 150,
-        health: 100,
-        wave: 1,
-        enemiesAlive: 0,
-        enemiesTotal: 0,
-        gameRunning: false,
-        gameOver: false,
-        selectedTowerType: 'archer',
-        selectedTower: null,
-        towers: [],
-        enemies: [],
-        bullets: [],
-        towerStats: {
-            archer: { damage: 10, range: 4, speed: 2.0, cost: 50, level: 1 },
-            knight: { damage: 25, range: 2, speed: 1.2, cost: 100, level: 1 },
-            wizard: { damage: 15, range: 5, speed: 1.5, cost: 150, level: 1 }
-        },
-        waveTimer: 30
-    });
+    gameState.gold = 150;
+    gameState.health = 100;
+    gameState.wave = 1;
+    gameState.enemiesAlive = 0;
+    gameState.enemiesTotal = 0;
+    gameState.gameRunning = false;
+    gameState.gameOver = false;
+    gameState.selectedTowerType = 'archer';
+    gameState.selectedTower = null;
+    gameState.towers = [];
+    gameState.enemies = [];
+    gameState.bullets = [];
+    gameState.waveTimer = 30;
     
     // Очищаем игровое поле
     document.querySelectorAll('.tower-placed, .enemy, .bullet, .hit-effect').forEach(el => {
         if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    
+    // Сбрасываем клетки
+    document.querySelectorAll('.grid-cell').forEach(cell => {
+        cell.classList.remove('tower');
     });
     
     // Обновляем интерфейс
@@ -895,8 +868,8 @@ function restartGame() {
 
 // Обновление интерфейса
 function updateUI() {
-    elements.health.textContent = gameState.health;
-    elements.healthFill.style.width = `${gameState.health}%`;
+    elements.health.textContent = Math.max(0, gameState.health);
+    elements.healthFill.style.width = `${Math.max(0, gameState.health)}%`;
     elements.gold.textContent = gameState.gold;
     elements.wave.textContent = gameState.wave;
     elements.enemiesLeft.textContent = gameState.enemiesAlive;
@@ -908,23 +881,14 @@ function updateUI() {
     
     elements.nextWaveInfo.textContent = `${gameState.wave} (${waveDifficulty})`;
     
-    // Обновляем статистику башен
-    updateTowerStatsDisplay();
-}
-
-// Обновление отображения статистики башен
-function updateTowerStatsDisplay() {
-    document.getElementById('archerDamage').textContent = gameState.towerStats.archer.damage;
-    document.getElementById('archerRange').textContent = gameState.towerStats.archer.range;
-    document.getElementById('archerSpeed').textContent = gameState.towerStats.archer.speed;
-    
-    document.getElementById('knightDamage').textContent = gameState.towerStats.knight.damage;
-    document.getElementById('knightRange').textContent = gameState.towerStats.knight.range;
-    document.getElementById('knightSpeed').textContent = gameState.towerStats.knight.speed;
-    
-    document.getElementById('wizardDamage').textContent = gameState.towerStats.wizard.damage;
-    document.getElementById('wizardRange').textContent = gameState.towerStats.wizard.range;
-    document.getElementById('wizardSpeed').textContent = gameState.towerStats.wizard.speed;
+    // Обновляем цвет здоровья таверны
+    if (gameState.health > 70) {
+        elements.healthFill.style.background = 'linear-gradient(to right, #00ff00, #00cc00)';
+    } else if (gameState.health > 40) {
+        elements.healthFill.style.background = 'linear-gradient(to right, #ffff00, #ff9900)';
+    } else {
+        elements.healthFill.style.background = 'linear-gradient(to right, #ff9900, #ff0000)';
+    }
 }
 
 // Добавление записи в журнал
@@ -939,21 +903,27 @@ function addLogEntry(message, type = "info") {
     elements.log.scrollTop = elements.log.scrollHeight;
 }
 
-// Вспомогательные функции
-function getTowerIcon(type) {
-    const icons = { archer: '🏹', knight: '⚔️', wizard: '🔮' };
-    return icons[type] || '🛡️';
-}
-
-function getEnemyIcon(type) {
-    const icons = { drunkard: '🍺', thief: '🗡️', barbarian: '🪓' };
-    return icons[type] || '👤';
-}
-
-function getEnemyName(type) {
-    const names = { drunkard: 'Пьяница', thief: 'Вор', barbarian: 'Варвар' };
-    return names[type] || type;
-}
-
 // Инициализация игры при загрузке страницы
 window.addEventListener('DOMContentLoaded', initGame);
+
+// Обновление пути при изменении размера окна
+window.addEventListener('resize', () => {
+    // Пересоздаем сетку и путь
+    createGrid();
+    createPathCells();
+    
+    // Перерисовываем башни
+    gameState.towers.forEach(tower => {
+        const towerElement = document.querySelector(`.tower-placed[data-id="${tower.id}"]`);
+        if (towerElement) {
+            // Обновляем позицию башни
+            const cell = document.querySelector(`.grid-cell[data-row="${tower.row}"][data-col="${tower.col}"]`);
+            if (cell) {
+                tower.x = parseFloat(cell.dataset.x);
+                tower.y = parseFloat(cell.dataset.y);
+                towerElement.style.left = `${tower.x}px`;
+                towerElement.style.top = `${tower.y}px`;
+            }
+        }
+    });
+});
