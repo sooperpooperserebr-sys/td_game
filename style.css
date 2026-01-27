@@ -29,7 +29,6 @@ header {
     padding: 20px;
     text-align: center;
     border-bottom: 3px solid #d4af37;
-    position: relative;
 }
 
 header h1 {
@@ -44,32 +43,17 @@ header p {
     font-size: 1.2rem;
 }
 
-.day-night-indicator {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: rgba(0, 0, 0, 0.3);
-    padding: 5px 15px;
-    border-radius: 20px;
-    border: 1px solid #d4af37;
-}
-
-.day-night-indicator.day {
-    color: #ffd700;
-}
-
-.day-night-indicator.night {
-    color: #8a2be2;
-}
-
 .game-content {
     display: flex;
     padding: 20px;
     gap: 20px;
     min-height: 800px;
+}
+
+@media (max-width: 1100px) {
+    .game-content {
+        flex-direction: column;
+    }
 }
 
 .game-info {
@@ -109,7 +93,7 @@ header p {
 }
 
 .stat-label {
-    width: 160px;
+    width: 140px;
     color: #d4af37;
     font-weight: bold;
 }
@@ -400,10 +384,7 @@ header p {
     gap: 2px;
     height: 100%;
     width: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    padding: 20px;
+    position: relative;
 }
 
 .grid-cell {
@@ -436,8 +417,8 @@ header p {
 
 #tavern {
     position: absolute;
-    bottom: 40px;
-    right: 40px;
+    bottom: 20px;
+    right: 20px;
     width: 120px;
     height: 120px;
     background: linear-gradient(to bottom, #8b4513, #5d2906);
@@ -472,8 +453,7 @@ header p {
     color: white;
     font-weight: bold;
     z-index: 5;
-    transition: transform 0.1s linear;
-    transform: translate(-50%, -50%);
+    transition: left 0.1s linear, top 0.1s linear;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
 }
 
@@ -492,9 +472,9 @@ header p {
     border: 2px solid #dc143c;
 }
 
-.enemy.health-bar {
+.enemy .health-bar {
     position: absolute;
-    top: -10px;
+    top: -8px;
     left: 50%;
     transform: translateX(-50%);
     width: 40px;
@@ -504,7 +484,7 @@ header p {
     overflow: hidden;
 }
 
-.enemy.health-fill {
+.enemy .health-fill {
     height: 100%;
     background: linear-gradient(to right, #ff0000, #00ff00);
     transition: width 0.3s;
@@ -512,18 +492,18 @@ header p {
 
 .tower-placed {
     position: absolute;
-    width: 45px;
-    height: 45px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.8rem;
+    font-size: 1.5rem;
     z-index: 5;
     border: 2px solid;
-    transform: translate(-50%, -50%);
     cursor: pointer;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    transform: translate(-50%, -50%);
 }
 
 .tower-placed:hover {
@@ -586,6 +566,23 @@ header p {
     box-shadow: 0 0 5px #9370db;
 }
 
+.hit-effect {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ff4444;
+    opacity: 0.7;
+    z-index: 6;
+    transform: translate(-50%, -50%);
+    animation: hitAnim 0.3s forwards;
+}
+
+@keyframes hitAnim {
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.7; }
+    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+}
+
 .game-log {
     background: rgba(40, 25, 15, 0.9);
     border-radius: 10px;
@@ -644,34 +641,4 @@ footer {
 #nextWaveInfo {
     color: #ffd700;
     font-weight: bold;
-}
-
-@media (max-width: 1200px) {
-    .game-content {
-        flex-direction: column;
-    }
-    
-    .game-info {
-        min-width: 100%;
-    }
-    
-    .board-container {
-        height: 500px;
-    }
-}
-
-@media (max-width: 768px) {
-    .game-content {
-        padding: 10px;
-    }
-    
-    .tower-list {
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
-    
-    .tower-card {
-        flex: 1;
-        min-width: 200px;
-    }
 }
