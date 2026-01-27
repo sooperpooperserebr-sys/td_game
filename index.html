@@ -6,6 +6,12 @@
     <title>Таверна: Защита от злых посетителей</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Временные стили для эмодзи, если шрифты не загрузятся */
+        .fallback-emoji {
+            font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+        }
+    </style>
 </head>
 <body>
     <div class="game-container">
@@ -61,34 +67,31 @@
                     <h3><i class="fas fa-tower-observation"></i> Охранники (башни)</h3>
                     <div class="tower-list">
                         <div class="tower-card selected" data-type="archer">
-                            <div class="tower-icon archer">🏹</div>
+                            <div class="tower-icon archer fallback-emoji">🏹</div>
                             <div class="tower-info">
                                 <h4>Лучник</h4>
-                                <p>Урон: <span id="archerDamage">10</span></p>
-                                <p>Дальность: <span id="archerRange">4</span></p>
-                                <p>Скорость: <span id="archerSpeed">2.0</span>/сек</p>
+                                <p>Дальняя атака, быстрая стрельба</p>
+                                <p>Урон: <span class="tower-damage">10</span></p>
                                 <p><strong>Цена: 50 золота</strong></p>
                                 <button class="btn buy-btn" data-type="archer">Выбрать</button>
                             </div>
                         </div>
                         <div class="tower-card" data-type="knight">
-                            <div class="tower-icon knight">⚔️</div>
+                            <div class="tower-icon knight fallback-emoji">⚔️</div>
                             <div class="tower-info">
                                 <h4>Рыцарь</h4>
-                                <p>Урон: <span id="knightDamage">25</span></p>
-                                <p>Дальность: <span id="knightRange">2</span></p>
-                                <p>Скорость: <span id="knightSpeed">1.2</span>/сек</p>
+                                <p>Ближний бой, высокий урон</p>
+                                <p>Урон: <span class="tower-damage">25</span></p>
                                 <p><strong>Цена: 100 золота</strong></p>
                                 <button class="btn buy-btn" data-type="knight">Выбрать</button>
                             </div>
                         </div>
                         <div class="tower-card" data-type="wizard">
-                            <div class="tower-icon wizard">🔮</div>
+                            <div class="tower-icon wizard fallback-emoji">🔮</div>
                             <div class="tower-info">
                                 <h4>Маг</h4>
-                                <p>Урон: <span id="wizardDamage">15</span></p>
-                                <p>Дальность: <span id="wizardRange">5</span></p>
-                                <p>Скорость: <span id="wizardSpeed">1.5</span>/сек</p>
+                                <p>Магическая атака, средняя дальность</p>
+                                <p>Урон: <span class="tower-damage">15</span></p>
                                 <p><strong>Цена: 150 золота</strong></p>
                                 <button class="btn buy-btn" data-type="wizard">Выбрать</button>
                             </div>
@@ -104,24 +107,24 @@
                     <h3><i class="fas fa-skull-crossbones"></i> Враги (появляются ночью)</h3>
                     <div class="enemy-types">
                         <div class="enemy-type">
-                            <div class="enemy-icon drunkard">🍺</div>
+                            <div class="enemy-icon drunkard fallback-emoji">🍺</div>
                             <div class="enemy-details">
                                 <span class="enemy-name">Пьяница</span>
-                                <span class="enemy-desc">Здоровье: 60 | Урон: 5 | Скорость: 0.8</span>
+                                <span class="enemy-desc">Медленный, но здоровый</span>
                             </div>
                         </div>
                         <div class="enemy-type">
-                            <div class="enemy-icon thief">🗡️</div>
+                            <div class="enemy-icon thief fallback-emoji">🗡️</div>
                             <div class="enemy-details">
                                 <span class="enemy-name">Вор</span>
-                                <span class="enemy-desc">Здоровье: 30 | Урон: 10 | Скорость: 1.5</span>
+                                <span class="enemy-desc">Быстрый, но слабый</span>
                             </div>
                         </div>
                         <div class="enemy-type">
-                            <div class="enemy-icon barbarian">🪓</div>
+                            <div class="enemy-icon barbarian fallback-emoji">🪓</div>
                             <div class="enemy-details">
                                 <span class="enemy-name">Варвар</span>
-                                <span class="enemy-desc">Здоровье: 100 | Урон: 15 | Скорость: 0.6</span>
+                                <span class="enemy-desc">Сильный, средняя скорость</span>
                             </div>
                         </div>
                     </div>
